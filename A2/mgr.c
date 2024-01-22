@@ -14,7 +14,7 @@ void SigHandler_INT ( int sig )
 {
     if (pid != -1) {
         kill(pid, SIGKILL);
-        // find the ondex in c_pids with value as pid
+        // - find the ondex in c_pids with value as pid
         int i = 0;
         while (c_pids[i] != pid) {
             i++;
