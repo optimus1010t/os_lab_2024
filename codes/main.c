@@ -77,6 +77,12 @@ int main (int argc, char* argv[])
         sprintf(p21, "%d", p2[1]);
         execlp("xterm", "xterm", "-T", "Second Child", "-e", "./CSE","1", p10, p11, p20, p21, NULL);
     }
+    else{
+        waitpid(pid_c1, NULL, WUNTRACED);
+        printf("+++ CSE in supervisor mode: First child terminated\n");
+        waitpid(pid_c2, NULL, WUNTRACED);
+        printf("+++ CSE in supervisor mode: Second child terminated\n");
+    }
     }
     else {
         int a1 = atoi(argv[1]);
@@ -121,7 +127,6 @@ int main (int argc, char* argv[])
                     printf("%s", buffer);
                     fflush(stdout);
                     if (strcmp(buffer,"exit\n") == 0){
-                        close(a3);
                         exit(0);
                     }
                     if (strcmp(buffer,"swaprole\n") == 0) {
