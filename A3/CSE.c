@@ -13,32 +13,6 @@
 #define MAX_WORDS 100  // Maximum number of words
 #define MAX_WORD_LEN 50 // Maximum length of a word
 
-// char** split_into_words(const char* inputLine) {
-//     static char* words[MAX_WORDS + 1];  // Static array of string pointers
-//     int wordCount = 0;
-//     // Make a copy of the input line to tokenize
-//     char* lineCopy = strdup(inputLine);
-//     if (lineCopy == NULL) {
-//         perror("strdup failed");
-//         return NULL;
-//     }
-//     // Tokenize the string and store words
-//     char* word = strtok(lineCopy, " ");
-//     while (word != NULL && wordCount < MAX_WORDS) {
-//         words[wordCount] = strdup(word); // Duplicate the word
-//         if (words[wordCount] == NULL) {
-//             perror("strdup failed");
-//             free(lineCopy);
-//             return NULL;
-//         }
-//         wordCount++;
-//         word = strtok(NULL, " ");
-//     }
-//     words[wordCount] = NULL;  // Null-terminate the array of strings
-//     free(lineCopy); // Free the copy of the input line
-//     return words;
-// }
-
 int main (int argc, char* argv[])
 {
     if (argc == 1) {

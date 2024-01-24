@@ -2,13 +2,13 @@
 # delete the file a.out if it exists
 
 run: main.c
-	rm -f a.out
-	gcc main.c
-	./a.out
+	rm -f CSE
+	gcc -O0 main.c -o CSE
+	./CSE
 
 save: ease.sh
 	./ease.sh
 
 clean: 
-	rm -f a.out
+	rm -f CSE
 
