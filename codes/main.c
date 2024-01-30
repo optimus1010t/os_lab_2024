@@ -1,262 +1,133 @@
+/* 
+		SHARING MEMORY BETWEEN PROCESSES
+
+    In this example, we show how two processes can share a common
+    portion of the memory. Recall that when a process forks, the
+    new child process has an identical copy of the variables of
+    the parent process. After fork the parent and child can update
+    their own copies of the variables in their own way, since they
+    dont actually share the variable. Here we show how they can
+    share memory, so that when one updates it, the other can see
+    the change.
+
+*/
+
 #include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <signal.h>
-#include <fcntl.h>
-#include <time.h>
-#include <string.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>	/*  This file is necessary for using shared
+                            memory constructs
+			            */
 
-#define MAX_WORDS 100  // Maximum number of words
-#define MAX_WORD_LEN 50 // Maximum length of a word
-
-// char** split_into_words(const char* inputLine) {
-//     static char* words[MAX_WORDS + 1];  // Static array of string pointers
-//     int wordCount = 0;
-//     // Make a copy of the input line to tokenize
-//     char* lineCopy = strdup(inputLine);
-//     if (lineCopy == NULL) {
-//         perror("strdup failed");
-//         return NULL;
-//     }
-//     // Tokenize the string and store words
-//     char* word = strtok(lineCopy, " ");
-//     while (word != NULL && wordCount < MAX_WORDS) {
-//         words[wordCount] = strdup(word); // Duplicate the word
-//         if (words[wordCount] == NULL) {
-//             perror("strdup failed");
-//             free(lineCopy);
-//             return NULL;
-//         }
-//         wordCount++;
-//         word = strtok(NULL, " ");
-//     }
-//     words[wordCount] = NULL;  // Null-terminate the array of strings
-//     free(lineCopy); // Free the copy of the input line
-//     return words;
-// }
-
-int main (int argc, char* argv[])
+main()
 {
-    if (argc == 1) {
-    int child1, child2;
-    int p1[2];
-    int p2[2];
-    if (pipe(p1) < 0) {
-        perror("pipe failed");
-        exit(1);
-    }
-    if (pipe(p2) < 0) {
-        perror("pipe failed");
-        exit(1);
-    }
-    printf("+++ CSE in supervisor mode: Started\n");
-    printf("+++ CSE in supervisor mode: pfd = [%d %d]\n", p1[0], p1[1]);
-    int pid;
-    int pid_c1, pid_c2;
-    if ((pid = fork()) != 0) {
-        printf("+++ CSE in supervisor mode: Forking first child in command-input mode\n");
-        pid_c1 = pid;
-        char p10[10], p11[10], p20[10], p21[10];
-        sprintf(p10, "%d", p1[0]);
-        sprintf(p11, "%d", p1[1]);
-        sprintf(p20, "%d", p2[0]);
-        sprintf(p21, "%d", p2[1]);
-        execlp("xterm", "xterm", "-T", "First Child", "-e", "./CSE","0", p10, p11, p20, p21, NULL);
-    }
-    else if (pid = fork() != 0) {
-        printf("+++ CSE in supervisor mode: Forking second child in execute mode\n");
-        pid_c2 = pid;
-        char p10[10], p11[10], p20[10], p21[10];
-        sprintf(p10, "%d", p1[0]);
-        sprintf(p11, "%d", p1[1]);
-        sprintf(p20, "%d", p2[0]);
-        sprintf(p21, "%d", p2[1]);
-        execlp("xterm", "xterm", "-T", "Second Child", "-e", "./CSE","1", p10, p11, p20, p21, NULL);
-    }
-    else{
-        waitpid(pid_c1, NULL, WUNTRACED);
-        printf("+++ CSE in supervisor mode: First child terminated\n");
-        waitpid(pid_c2, NULL, WUNTRACED);
-        printf("+++ CSE in supervisor mode: Second child terminated\n");
-    }
-    }
-    else {
-        int a1 = atoi(argv[1]);
-        int a2 = atoi(argv[2]);
-        int a3 = atoi(argv[3]);
-        int a4 = atoi(argv[4]);
-        int a5 = atoi(argv[5]);
-        int swap = 0;
-        
-        if (a1 == 0){
-            int out_b, in_b;
-            out_b = dup(1);
-            in_b = dup(0);
-            close(1);
-            dup(a3);            
-            while(1){
-                if (swap == 0) {
-                    char buffer[1024];
-                    write(2,"Enter command> ", 15);
-                    fgets(buffer,1024, stdin);
-                    printf("%s",buffer);
-                    fflush(stdout);
-                    if (strcmp(buffer,"exit\n") == 0) {
-                        exit(0);
-                    }
-                    if (strcmp(buffer,"swaprole\n") == 0) {
-                        swap = 1;                        
-                        close(0);
-                        dup(a4);
-                        close(1);
-                        dup(out_b);
-                        for (int i = 0; i < 1024; i++) buffer[i] = '\0';
-                        continue;
-                    }
-                    fflush(stdout);
+	int shmid, status;
+	int *a, *b;
+	int i;
 
-                }
-                if (swap == 1) {
-                    char buffer[1024];
-                    write(2,"Waiting for command> ",21);
-                    fgets(buffer,1024, stdin);
-                    printf("%s", buffer);
-                    fflush(stdout);
-                    if (strcmp(buffer,"exit\n") == 0){
-                        exit(0);
-                    }
-                    if (strcmp(buffer,"swaprole\n") == 0) {
-                        swap = 0;
-                        close(1);
-                        dup(a3);
-                        close(0);
-                        dup(in_b);
-                        for (int i = 0; i < 1024; i++) buffer[i] = '\0'; 
-                        continue;
-                    }
-                    static char* words[MAX_WORDS + 1];  // Static array of string pointers
-                    int wordCount = 0;
-                    if (buffer[strlen(buffer)-1]=='\n') buffer[strlen(buffer)-1] = '\0';
-                    // Make a copy of the input line to tokenize
-                    char* lineCopy = strdup(buffer);
-                    if (lineCopy == NULL) {
-                        perror("strdup failed");
-                    }
-                    // Tokenize the string and store words
-                    char* word = strtok(lineCopy, " ");
-                    while (word != NULL && wordCount < MAX_WORDS) {
-                        words[wordCount] = strdup(word); // Duplicate the word
-                        if (words[wordCount] == NULL) {
-                            perror("strdup failed");
-                            free(lineCopy);
-                        }
-                        wordCount++;
-                        word = strtok(NULL, " ");
-                    }
-                    words[wordCount] = NULL;  // Null-terminate the array of strings
-                    int pid;
-                    free(lineCopy);
-                    if (pid=fork() == 0) {
-                        close(0);
-                        dup(in_b);
-                        int check = execvp(words[0],words);
-                        if (check == -1) {
-                            printf("*** Unable to execute command\n");
-                        }
-                        exit(0);
-                    }
-                    else waitpid(pid, NULL, WUNTRACED);
-                    fflush(stdout);
-                    // printf("\n");
-                }
-            }
-        }
-        else {
-            int out_b, in_b;
-            out_b = dup(1);
-            in_b = dup(0);
-            close(0);
-            dup(a2);
-            while(1){
-                if (swap == 0) {
-                    char buffer[1024];
-                    write(2,"Waiting for command> ",21);
-                    fgets(buffer,1024, stdin);
-                    printf("%s", buffer);
-                    fflush(stdout);
-                    if (strcmp(buffer,"exit\n") == 0){
-                        exit(0);
-                    }
-                    if (strcmp(buffer,"swaprole\n") == 0) {
-                        swap = 1;
-                        close(1);
-                        dup(a5);
-                        close(0);
-                        dup(in_b);
-                        for (int i = 0; i < 1024; i++) buffer[i] = '\0';
-                        continue;
-                    }
-                    static char* words[MAX_WORDS + 1];  // Static array of string pointers
-                    int wordCount = 0;
-                    if (buffer[strlen(buffer)-1]=='\n') buffer[strlen(buffer)-1] = '\0';
-                    // Make a copy of the input line to tokenize
-                    char* lineCopy = strdup(buffer);
-                    if (lineCopy == NULL) {
-                        perror("strdup failed");
-                    }
-                    // Tokenize the string and store words
-                    char* word = strtok(lineCopy, " ");
-                    while (word != NULL && wordCount < MAX_WORDS) {
-                        words[wordCount] = strdup(word); // Duplicate the word
-                        if (words[wordCount] == NULL) {
-                            perror("strdup failed");
-                            free(lineCopy);
-                        }
-                        wordCount++;
-                        word = strtok(NULL, " ");
-                    }
-                    words[wordCount] = NULL;  // Null-terminate the array of strings
-                    int pid;
-                    free(lineCopy);
-                    if (pid=fork() == 0) {
-                        close(0);
-                        dup(in_b);
-                        int check = execvp(words[0],words);
-                        if (check == -1) {
-                            printf("*** Unable to execute command\n");
-                        }
-                        exit(0);
-                    }
-                    else waitpid(pid, NULL, WUNTRACED);
-                    fflush(stdout);
-                    // printf("\n");
-                }
-                if (swap == 1) {
-                    char buffer[1024];
-                    write(2,"Enter command> ", 15);
-                    fgets(buffer,1024, stdin);
-                    printf("%s",buffer);
-                    fflush(stdout);
-                    if (strcmp(buffer,"exit\n") == 0) {
-                        exit(0);
-                    }
-                    if (strcmp(buffer,"swaprole\n") == 0) {
-                        swap = 0;
-                        close(0);
-                        dup(a2);
-                        close(1);
-                        dup(out_b);
-                        for (int i = 0; i < 1024; i++) buffer[i] = '\0';
-                        continue;
-                    }
-                    fflush(stdout);
-                }            
-            }
-        }
-    }  
-    exit(0);
+	/*  
+        The operating system keeps track of the set of shared memory
+        segments. In order to acquire shared memory, we must first
+        request the shared memory from the OS using the shmget()
+        system call. The second parameter specifies the number of
+        bytes of memory requested. shmget() returns a shared memory
+        identifier (SHMID) which is an integer. Refer to the online
+        man pages for details on the other two parameters of shmget()
+	*/
+	shmid = shmget(IPC_PRIVATE, 2*sizeof(int), 0777|IPC_CREAT);
+			/* We request an array of two integers */
+
+	/* 
+        After forking, the parent and child must "attach" the shared
+        memory to its local data segment. This is done by the shmat()
+        system call. shmat() takes the SHMID of the shared memory
+        segment as input parameter and returns the address at which
+        the segment has been attached. Thus shmat() returns a char
+        pointer.
+	*/
+	if (fork() == 0) {
+
+		/* Child Process */
+
+		/*  shmat() returns a char pointer which is typecast here
+		    to int and the address is stored in the int pointer b. */
+		b = (int *) shmat(shmid, 0, 0);
+
+		for( i=0; i< 10; i++) {
+			sleep(1);
+			printf("\t\t\t Child reads: %d,%d\n",b[0],b[1]);
+		}
+		/* each process should "detach" itself from the 
+		   shared memory after it is used */
+
+		shmdt(b);
+
+	}
+	else {
+
+		/* Parent Process */
+
+        /*  shmat() returns a char pointer which is typecast here
+            to int and the address is stored in the int pointer a.
+            Thus the memory locations a[0] and a[1] of the parent
+            are the same as the memory locations b[0] and b[1] of
+            the parent, since the memory is shared.
+		*/
+		a = (int *) shmat(shmid, 0, 0);
+
+		a[0] = 0; a[1] = 1;
+		for( i=0; i< 10; i++) {
+			sleep(1);
+			a[0] = a[0] + a[1];
+			a[1] = a[0] + a[1];
+			printf("Parent writes: %d,%d\n",a[0],a[1]);
+		}
+		wait(&status);
+
+		/* each process should "detach" itself from the 
+		   shared memory after it is used */
+
+		shmdt(a);
+
+        /*  Child has exited, so parent process should delete
+            the cretaed shared memory. Unlike attach and detach,
+            which is to be done for each process separately,
+            deleting the shared memory has to be done by only
+            one process after making sure that noone else
+            will be using it 
+		 */
+
+		shmctl(shmid, IPC_RMID, 0);
+	}
 }
+
+/*
+        POINTS TO NOTE:
+
+	In this case we find that the child reads all the values written
+	by the parent. Also the child does not print the same values
+	again.
+
+	1.  Modify the sleep in the child process to sleep(2). What
+        happens now?
+
+	2.  Restore the sleep in the child process to sleep(1) and modify
+        the sleep in the parent process to sleep(2). What happens now?
+
+	Thus we see that when the writer is faster than the reader, then
+	the reader may miss some of the values written into the shared
+	memory. Similarly, when the reader is faster than the writer, then
+	the reader may read the same values more than once. Perfect 
+	inter-process communication requires synchronization between the
+	reader and the writer. You can use semaphores to do this.
+
+	Further note that "sleep" is not a synchronization construct.
+    We use "sleep" to model some amount of computation which may
+	exist in the process in a real world application.
+
+	Also, we have called the different shared memory related
+	functions such as shmget, shmat, shmdt, and shmctl, assuming
+	that they always succeed and never fail. This is done to
+	keep this proram simple. In practice, you should always check for
+    the return values from this function and exit if there is 
+	an error. 	
+*/
