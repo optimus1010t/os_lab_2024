@@ -161,6 +161,11 @@ main()
 	inter-process communication requires synchronization between the
 	reader and the writer. You can use semaphores to do this.
 
+	--> What are Semaphores in Operating Systems? Semaphores refer to the 
+	integer variables that are primarily used to solve the critical 
+	section problem via combining two of the atomic procedures, wait 
+	and signal, for the process synchronization.
+
 	Further note that "sleep" is not a synchronization construct.
     We use "sleep" to model some amount of computation which may
 	exist in the process in a real world application.
