@@ -9,7 +9,7 @@ int main ()
 
    srand((unsigned int)time(NULL));
 
-   fp = (FILE *)fopen("arrival.txt", "w");
+   fp = (FILE *)fopen("arrival1.txt", "w");
 
    /* Patients */
    n = 25 + rand() % 16;
