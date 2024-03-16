@@ -111,11 +111,17 @@ void foothread_mutex_init(foothread_mutex_t *mutex) {
     pop.sem_flg = vop.sem_flg = 0;
     pop.sem_op = -1; vop.sem_op = 1;
     wait(sem_mutex);
-    mutex->key = mutexes_and_barriers;
-    int my_mutex = semget(ftok(".",mutex->key), 1, 0777|IPC_CREAT);
-    semctl(my_mutex, 0, SETVAL, 1);
-    mutexes_and_barriers++;
+    mutex->key[0] = mutexes_and_barriers;
+    mutex->key[1] = mutexes_and_barriers + 1;
+    mutexes_and_barriers+=2;
     signal(sem_mutex);
+    int my_mutex = semget(ftok(".",mutex->key[0]), 1, 0777|IPC_CREAT);
+    semctl(my_mutex, 0, SETVAL, 1);
+    my_mutex = semget(ftok(".",mutex->key[1]), 1, 0777|IPC_CREAT);
+    semctl(my_mutex, 0, SETVAL, 1);
+    wait(my_mutex);
+    for (int i = 0; i < FOOTHREAD_THREADS_MAX; i++) mutex->threads_waiting[i] = -1;
+    signal(my_mutex);
     mutex->tid = gettid();
 }
 
@@ -124,11 +130,20 @@ void foothread_mutex_lock(foothread_mutex_t *mutex) {
     pop.sem_num = vop.sem_num = 0;
     pop.sem_flg = vop.sem_flg = 0;
     pop.sem_op = -1; vop.sem_op = 1;
-    if (mutex->tid != gettid()) {
-        printf("This thread does not own the mutex\n");
+    int my_mutex = semget(ftok(".",mutex->key[1]), 0, 0);
+    if (my_mutex == -1) {
+        printf("This mutex does not exist\n");
         return;
     }
-    int my_mutex = sem_get(ftok(".",mutex->key), 0, 0);
+    wait(my_mutex);
+    for (int i = 0; i < FOOTHREAD_THREADS_MAX; i++) {
+        if (mutex->threads_waiting[i] == -1) {
+            mutex->threads_waiting[i] = gettid();
+            break;
+        }
+    }
+    signal(my_mutex);
+    my_mutex = semget(ftok(".",mutex->key[0]), 0, 0);
     if (my_mutex == -1) {
         printf("This mutex does not exist\n");
         return;
@@ -141,11 +156,7 @@ void foothread_mutex_unlock(foothread_mutex_t *mutex) {
     pop.sem_num = vop.sem_num = 0;
     pop.sem_flg = vop.sem_flg = 0;
     pop.sem_op = -1; vop.sem_op = 1;
-    if (mutex->tid != gettid()) {
-        printf("This thread does not own the mutex\n");
-        return;
-    }
-    int my_mutex = sem_get(ftok(".",mutex->key), 0, 0);
+    int my_mutex = semget(ftok(".",mutex->key[0]), 0, 0);
     if (my_mutex == -1) {
         printf("This mutex does not exist\n");
         return;
@@ -154,7 +165,20 @@ void foothread_mutex_unlock(foothread_mutex_t *mutex) {
         printf("This mutex is already unlocked\n");
         return;
     }
-    signal(my_mutex);
+    int my_mutex2 = semget(ftok(".",mutex->key[1]), 0, 0);
+    if (my_mutex == -1) {
+        printf("This mutex does not exist\n");
+        return;
+    }
+    wait(my_mutex2);
+    for (int i = 0; i < FOOTHREAD_THREADS_MAX; i++) {
+        if (mutex->threads_waiting[i] == gettid()) {
+            mutex->threads_waiting[i] = -1;
+            signal(my_mutex);
+            break;
+        }
+    }
+    signal(my_mutex2);
 }
 
 void foothread_mutex_destroy(foothread_mutex_t *mutex) {
@@ -166,7 +190,13 @@ void foothread_mutex_destroy(foothread_mutex_t *mutex) {
         printf("This thread does not own the mutex\n");
         return;
     }
-    int my_mutex = sem_get(ftok(".",mutex->key), 0, 0);
+    int my_mutex = semget(ftok(".",mutex->key[0]), 0, 0);
+    if (my_mutex == -1) {
+        printf("This mutex does not exist\n");
+        return;
+    }
+    semctl(my_mutex, 0, IPC_RMID, 0);
+    my_mutex = semget(ftok(".",mutex->key[1]), 0, 0);
     if (my_mutex == -1) {
         printf("This mutex does not exist\n");
         return;
@@ -193,7 +223,7 @@ void foothread_barrier_init(foothread_barrier_t *barrier, int count) {
     my_barrier = semget(ftok(".",barrier->keys[1]), 1, 0777|IPC_CREAT);
     semctl(my_barrier, 0, SETVAL, 1);
     barrier->value = count;
-    barrier->threads = 0;
+    barrier->thread_count = 0;
 }
 
 void foothread_barrier_wait(foothread_barrier_t *barrier) {
@@ -201,30 +231,28 @@ void foothread_barrier_wait(foothread_barrier_t *barrier) {
     pop.sem_num = vop.sem_num = 0;
     pop.sem_flg = vop.sem_flg = 0;
     pop.sem_op = -1; vop.sem_op = 1;
-    int my_barrier = semget(ftok(".",barrier->keys[1]), 1, 0);
+    int my_barrier = semget(ftok(".",barrier->keys[0]), 1, 0);
+    if (my_barrier == -1) {
+        printf("This barrier does not exist\n");
+        return;
+    }
+    my_barrier = semget(ftok(".",barrier->keys[1]), 1, 0);
     if (my_barrier == -1) {
         printf("This barrier does not exist\n");
         return;
     }
     wait(my_barrier);
-    barrier->threads++;
-    if (barrier->threads == barrier->value) {
+    barrier->thread_count++;
+    if (barrier->thread_count == barrier->value) {
         my_barrier = semget(ftok(".",barrier->keys[0]), 1, 0);
-        if (my_barrier == -1) {
-            printf("This barrier does not exist\n");
-            return;
-        }
-        for (int i = 1; i < barrier->value; i++) signal(my_barrier);
-        barrier->threads = 0;
+        for (int i = 1; i < barrier->value; i++) { signal(my_barrier); }
+        barrier->thread_count = 0;
+        my_barrier = semget(ftok(".",barrier->keys[1]), 1, 0);
         signal(my_barrier);
         return;
     }
     signal(my_barrier);
     my_barrier = semget(ftok(".",barrier->keys[0]), 1, 0);
-    if (my_barrier == -1) {
-        printf("This barrier does not exist\n");
-        return;
-    }
     wait(my_barrier);
 }
 

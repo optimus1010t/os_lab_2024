@@ -13,7 +13,7 @@
 #include <sched.h>
 #include <sys/syscall.h>
 
-#define FOOTHREAD_THREADS_MAX 10
+#define FOOTHREAD_THREADS_MAX 1000
 #define FOOTHREAD_DEFAULT_STACK_SIZE 2097152
 #define FOOTHREAD_JOINABLE 1
 #define FOOTHREAD_DETACHED 0
@@ -34,12 +34,25 @@ typedef struct {
 } foothread_t;
 
 typedef struct {
-    int key;
+    int key[2];
     int tid;
+    int threads_waiting[FOOTHREAD_THREADS_MAX];
 } foothread_mutex_t;
 
 typedef struct {
     int keys[2];
     int value;
-    int threads;
+    int thread_count;
 } foothread_barrier_t;
+
+void foothread_attr_setjointype(foothread_attr_t *attr, int join_type);
+void foothread_attr_setstacksize(foothread_attr_t *attr, int stack_size);
+void foothread_create(foothread_t *thread, foothread_attr_t *attr, int (*start_routine)(void *), void *arg);
+void foothread_exit();
+void foothread_mutex_init(foothread_mutex_t *mutex);
+void foothread_mutex_lock(foothread_mutex_t *mutex);
+void foothread_mutex_unlock(foothread_mutex_t *mutex);
+void foothread_mutex_destroy(foothread_mutex_t *mutex);
+void foothread_barrier_init(foothread_barrier_t *barrier, int value);
+void foothread_barrier_wait(foothread_barrier_t *barrier);
+void foothread_barrier_destroy(foothread_barrier_t *barrier);

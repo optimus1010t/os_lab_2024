@@ -21,3 +21,6 @@ newrun: app tree
 
 clean:
 	-rm -f foothread.o libfoothread.so computesum gentree tree.txt a.out
+
+clean2:
+	-rm -f foothread.o libfoothread.so computesum gentree
