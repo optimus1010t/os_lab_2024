@@ -3,35 +3,53 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct arg {
+    int index;
+    int parent;
+    int children;
+    int n;
+};
 
+void sighandler (int signum) {
+    if (signum == SIGINT) {
+        int shm_barrier = shmget(ftok("tree.txt", 1000+'b'), 25*sizeof(foothread_barrier_t), 0777|IPC_CREAT);
+        foothread_barrier_t *barrier = (foothread_barrier_t *) shmat(shm_barrier, 0, 0);
 
-int subthread(void *arg) {
-    int *args = (int *) arg;
-    int index = args[0]; int parent = args[1]; int children = args[2]; int n = args[3];
-    int shm_sum = shmget(ftok("tree.txt", 's'), n*sizeof(int), 0);
+        int shm_mutex = shmget(ftok("tree.txt",1000+'m'), 25*sizeof(foothread_mutex_t), 0777|IPC_CREAT);
+        foothread_mutex_t *mutex = (foothread_mutex_t *) shmat(shm_mutex, 0, 0);
+
+        for (int i = 0; i < 25; i++) {
+            foothread_barrier_destroy(&barrier[i]);
+            foothread_mutex_destroy(&mutex[i]);
+        }
+
+        //cleanup everything
+        shmdt(barrier);
+        shmdt(mutex);   
+        shmctl(shm_barrier, IPC_RMID, 0);
+        shmctl(shm_mutex, IPC_RMID, 0);
+    } 
+}
+
+int subthread(void *arg1) {
+    signal(SIGINT, sighandler);
+    struct arg *args = (struct arg *) arg1;
+    int index = args->index; int parent = args->parent; int children = args->children; int n = args->n;
+    int shm_sum = shmget(ftok("tree.txt", 1000+'s'), n*sizeof(int), 0);
     int *sum = (int *) shmat(shm_sum, 0, 0);
 
-    int shm_barrier = shmget(ftok("tree.txt", 'b'), n*sizeof(foothread_barrier_t), 0);
+    int shm_barrier = shmget(ftok("tree.txt", 1000+'b'), n*sizeof(foothread_barrier_t), 0);
     foothread_barrier_t *barrier = (foothread_barrier_t *) shmat(shm_barrier, 0, 0);
 
-    int shm_mutex = shmget(ftok("tree.txt", 'm'), n*sizeof(foothread_mutex_t), 0);
+    int shm_mutex = shmget(ftok("tree.txt", 1000+'m'), n*sizeof(foothread_mutex_t), 0);
     foothread_mutex_t *mutex = (foothread_mutex_t *) shmat(shm_mutex, 0, 0);
     foothread_barrier_wait(&barrier[index]);
-    if (children == 0) {
-        printf("Leaf node \t%d :: Enter a positive integer: ", index);
-        int x; scanf("%d", &x);
-        foothread_mutex_lock(&mutex[parent]);
-        sum[parent] += x;
-        foothread_mutex_unlock(&mutex[parent]);
-        foothread_barrier_wait(&barrier[parent]);
-        return (0);
-    }
     if (index == parent) {
-        foothread_barrier_wait(&barrier[index]);
-        printf("Sum at root (node %d) = %d", index, sum[index]);
+        printf("Sum at root (node %d) = %d\n", index, sum[index]);
         return (0);
     }    
-    printf("Internal node \t%d gets the partial sum %d from its children", index, sum[index]);
+    if(children!=0)
+        printf("Internal node \t%d gets the partial sum %d from its children\n", index, sum[index]);
     foothread_mutex_lock(&mutex[parent]);
     sum[parent] += sum[index];
     foothread_mutex_unlock(&mutex[parent]);
@@ -40,6 +58,7 @@ int subthread(void *arg) {
 }
 
 int main () {
+    signal(SIGINT, sighandler);
     int n;
     FILE* fp = fopen("tree.txt", "r");
     fscanf(fp, "%d", &n);
@@ -51,20 +70,21 @@ int main () {
     fclose(fp);
     int child[n];
     for (int i = 0; i < n; i++) child[i] = 0;
-    for (int i = 0; i < n; i++) if (tree[i] > 0 && tree[i] < n && tree[i]!=i) child[tree[i]]++;
+    for (int i = 0; i < n; i++) if (tree[i] > -1 && tree[i] < n && tree[i]!=i) child[tree[i]]++;
     foothread_t threads[n];
     foothread_attr_t attr = FOOTHREAD_ATTR_INITIALIZER;
 
-    int arg[n][4];
-    for (int i = 0; i < n; i++) { arg[i][0] = i; arg[i][1] = tree[i]; arg[i][2] = child[i]; arg[i][3] = n;}
+    struct arg *args;
+    args = (struct arg *) malloc(n*sizeof(struct arg));
+    for (int i = 0; i < n; i++) { args[i].index = i; args[i].parent = tree[i]; args[i].children = child[i]; args[i].n = n;}
 
-    int shm_sum = shmget(ftok("tree.txt", 's'), n*sizeof(int), 0777|IPC_CREAT);
+    int shm_sum = shmget(ftok("tree.txt", 1000+'s'), n*sizeof(int), 0777|IPC_CREAT);
     int *sum = (int *) shmat(shm_sum, 0, 0);
 
-    int shm_barrier = shmget(ftok("tree.txt", 'b'), n*sizeof(foothread_barrier_t), 0777|IPC_CREAT);
+    int shm_barrier = shmget(ftok("tree.txt", 1000+'b'), n*sizeof(foothread_barrier_t), 0777|IPC_CREAT);
     foothread_barrier_t *barrier = (foothread_barrier_t *) shmat(shm_barrier, 0, 0);
 
-    int shm_mutex = shmget(ftok("tree.txt", 'm'), n*sizeof(foothread_mutex_t), 0777|IPC_CREAT);
+    int shm_mutex = shmget(ftok("tree.txt", 1000+'m'), n*sizeof(foothread_mutex_t), 0777|IPC_CREAT);
     foothread_mutex_t *mutex = (foothread_mutex_t *) shmat(shm_mutex, 0, 0);
 
     for (int i = 0; i < n; i++) {
@@ -74,8 +94,17 @@ int main () {
 
     for (int i = 0; i < n; i++) {
         sum[i] = 0;
+        if(child[i]==0){
+            printf("Leaf node \t%d :: Enter a positive integer: ", i);
+            if (scanf("%d", &sum[i]) < 0) {
+                printf("Invalid input\n");
+                return 0;
+            }
+        }
     }
-    for (int i = 0; i < n; i++) foothread_create(&threads[i], &attr, subthread, (void *) &arg[i]);
+
+    
+    for (int i = 0; i < n; i++) foothread_create(&threads[i], &attr, subthread, (void *) &args[i]);
     foothread_exit();
     // cleanup
     return 0;
