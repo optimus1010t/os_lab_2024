@@ -25,22 +25,20 @@ int subthread(void *arg1) {
     foothread_barrier_wait(&barrier[index]);
     if (index == parent) {
         printf("Sum at root (node %d) = %d\n", index, sum[index]);
-        return (0);
+        foothread_exit(0);
+        return 0;
     }    
-    if(children!=0)
-        printf("Internal node \t%d gets the partial sum %d from its children\n", index, sum[index]);
+    if(children!=0) printf("Internal node \t%d gets the partial sum %d from its children\n", index, sum[index]);
     foothread_mutex_lock(&mutex[parent]);
     sum[parent] += sum[index];
     foothread_mutex_unlock(&mutex[parent]);
     foothread_barrier_wait(&barrier[parent]);
 
-    // cleanup
     shmdt(sum);
     shmdt(barrier);
     shmdt(mutex);
-    // free(args);
-    // sleep(5);
-    return (0);
+    foothread_exit();
+    return 0;
 }
 
 int main () {

@@ -11,9 +11,20 @@ static int sem_mutex;
 
 
 void foothread_attr_setjointype(foothread_attr_t *attr, int join_type) {
-    attr->join_type = join_type;
+    if(attr==NULL){
+        printf("foothread_attr_setjointype: attr is NULL\n");
+        return;
+    }
+    if(join_type==FOOTHREAD_JOINABLE || join_type==FOOTHREAD_DETACHED)
+        attr->join_type=join_type;
+    else
+        printf("foothread_attr_setjointype: join_type is not valid\n");
 }
 void foothread_attr_setstacksize(foothread_attr_t *attr, int stack_size) {
+    if(attr==NULL){
+        printf("foothread_attr_setstacksize: attr is NULL\n");
+        return;
+    }
     attr->stack_size = stack_size;
 }
 
