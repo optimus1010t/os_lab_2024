@@ -10,29 +10,8 @@ struct arg {
     int n;
 };
 
-void sighandler (int signum) {
-    if (signum == SIGINT) {
-        int shm_barrier = shmget(ftok("tree.txt", 1000+'b'), 25*sizeof(foothread_barrier_t), 0777|IPC_CREAT);
-        foothread_barrier_t *barrier = (foothread_barrier_t *) shmat(shm_barrier, 0, 0);
-
-        int shm_mutex = shmget(ftok("tree.txt",1000+'m'), 25*sizeof(foothread_mutex_t), 0777|IPC_CREAT);
-        foothread_mutex_t *mutex = (foothread_mutex_t *) shmat(shm_mutex, 0, 0);
-
-        for (int i = 0; i < 25; i++) {
-            foothread_barrier_destroy(&barrier[i]);
-            foothread_mutex_destroy(&mutex[i]);
-        }
-
-        //cleanup everything
-        shmdt(barrier);
-        shmdt(mutex);   
-        shmctl(shm_barrier, IPC_RMID, 0);
-        shmctl(shm_mutex, IPC_RMID, 0);
-    } 
-}
-
 int subthread(void *arg1) {
-    signal(SIGINT, sighandler);
+    // signal(SIGINT, sighandler);
     struct arg *args = (struct arg *) arg1;
     int index = args->index; int parent = args->parent; int children = args->children; int n = args->n;
     int shm_sum = shmget(ftok("tree.txt", 1000+'s'), n*sizeof(int), 0);
@@ -54,11 +33,18 @@ int subthread(void *arg1) {
     sum[parent] += sum[index];
     foothread_mutex_unlock(&mutex[parent]);
     foothread_barrier_wait(&barrier[parent]);
+
+    // cleanup
+    shmdt(sum);
+    shmdt(barrier);
+    shmdt(mutex);
+    // free(args);
+    // sleep(5);
     return (0);
 }
 
 int main () {
-    signal(SIGINT, sighandler);
+    // signal(SIGINT, sighandler);
     int n;
     FILE* fp = fopen("tree.txt", "r");
     fscanf(fp, "%d", &n);
@@ -106,6 +92,18 @@ int main () {
     
     for (int i = 0; i < n; i++) foothread_create(&threads[i], &attr, subthread, (void *) &args[i]);
     foothread_exit();
-    // cleanup
+
+    for (int i = 0; i < n; i++) {
+            foothread_barrier_destroy(&barrier[i]);
+            foothread_mutex_destroy(&mutex[i]);
+    }
+
+    //cleanup everything
+    free(args);
+    shmdt(sum);
+    shmdt(barrier);
+    shmdt(mutex);   
+    shmctl(shm_barrier, IPC_RMID, 0);
+    shmctl(shm_mutex, IPC_RMID, 0);
     return 0;
 }

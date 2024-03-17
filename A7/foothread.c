@@ -71,7 +71,7 @@ void foothread_create(foothread_t *thread, foothread_attr_t *attr, int (*start_r
     foothread_t *my_thread = (foothread_t *)malloc(sizeof(foothread_t));
     if (my_thread == NULL) {
         perror("malloc");
-        return;
+        exit(0);
     }
     if (attr == NULL) {
         attr = &(foothread_attr_t)FOOTHREAD_ATTR_INITIALIZER;
@@ -92,7 +92,7 @@ void foothread_create(foothread_t *thread, foothread_attr_t *attr, int (*start_r
     if (my_thread->tid == -1) {
         perror("clone");
         free(my_thread);
-        return;
+        exit(0);
     }
     if (thread != NULL) {
 		thread->tid = my_thread->tid;
@@ -134,7 +134,7 @@ void foothread_mutex_lock(foothread_mutex_t *mutex) {
     int my_mutex = semget(ftok("tree.txt",mutex->key[1]), 1, 0777);
     if (my_mutex == -1) {
         printf("This mutex does not exist\n");
-        return;
+        exit(0);
     }
     wait(my_mutex);
     for (int i = 0; i < FOOTHREAD_THREADS_MAX; i++) {
@@ -147,7 +147,7 @@ void foothread_mutex_lock(foothread_mutex_t *mutex) {
     my_mutex = semget(ftok("tree.txt",mutex->key[0]), 1, 0777);
     if (my_mutex == -1) {
         printf("This mutex does not exist\n");
-        return;
+        exit(0);
     }
     wait(my_mutex);
 }
@@ -160,16 +160,16 @@ void foothread_mutex_unlock(foothread_mutex_t *mutex) {
     int my_mutex = semget(ftok("tree.txt",mutex->key[0]), 1, 0777);
     if (my_mutex == -1) {
         printf("This mutex does not exist\n");
-        return;
+        exit(0);
     }
     if (semctl(my_mutex, 0, GETVAL, 0) == 1) {
         printf("This mutex is already unlocked\n");
-        return;
+        exit(0);
     }
     int my_mutex2 = semget(ftok("tree.txt",mutex->key[1]), 1, 0777);
     if (my_mutex == -1) {
         printf("This mutex does not exist\n");
-        return;
+        exit(0);
     }
     wait(my_mutex2);
     for (int i = 0; i < FOOTHREAD_THREADS_MAX; i++) {
@@ -189,18 +189,18 @@ void foothread_mutex_destroy(foothread_mutex_t *mutex) {
     pop.sem_op = -1; vop.sem_op = 1;
     if (mutex->tid != gettid()) {
         printf("This thread does not own the mutex\n");
-        return;
+        exit(0);
     }
     int my_mutex = semget(ftok("tree.txt",mutex->key[0]), 1, 0777);
     if (my_mutex == -1) {
         printf("This mutex does not exist\n");
-        return;
+        exit(0);
     }
     semctl(my_mutex, 0, IPC_RMID, 0);
     my_mutex = semget(ftok("tree.txt",mutex->key[1]), 1, 0777);
     if (my_mutex == -1) {
         printf("This mutex does not exist\n");
-        return;
+        exit(0);
     }
     semctl(my_mutex, 0, IPC_RMID, 0);
 }
@@ -212,7 +212,7 @@ void foothread_barrier_init(foothread_barrier_t *barrier, int count) {
     pop.sem_op = -1; vop.sem_op = 1;
     if (count == 0) {
         printf("Count cannot be zero\n");
-        return;
+        exit(0);
     }
     wait(sem_mutex);
     barrier->keys[0] = mutexes_and_barriers;
@@ -237,12 +237,12 @@ void foothread_barrier_wait(foothread_barrier_t *barrier) {
     int my_barrier = semget(ftok("tree.txt",barrier->keys[0]), 1, 0777);
     if (my_barrier == -1) {
         printf("This barrier does not exist\n");
-        return;
+        exit(0);
     }
     my_barrier = semget(ftok("tree.txt",barrier->keys[1]), 1, 0777);
     if (my_barrier == -1) {
         printf("This barrier does not exist\n");
-        return;
+        exit(0);
     }
     wait(my_barrier);
     barrier->thread_count++;
@@ -267,13 +267,13 @@ void foothread_barrier_destroy(foothread_barrier_t *barrier) {
     int my_barrier = semget(ftok("tree.txt",barrier->keys[0]), 1, 0777);
     if (my_barrier == -1) {
         printf("This barrier does not exist\n");
-        return;
+        exit(0);
     }
     semctl(my_barrier, 0, IPC_RMID, 0);
     my_barrier = semget(ftok("tree.txt",barrier->keys[1]), 1, 0777);
     if (my_barrier == -1) {
         printf("This barrier does not exist\n");
-        return;
+        exit(0);
     }
     semctl(my_barrier, 0, IPC_RMID, 0);
 }
