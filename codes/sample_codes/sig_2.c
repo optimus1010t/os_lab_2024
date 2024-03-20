@@ -19,7 +19,7 @@ int main(void)
 
     struct sigaction sa = {
         .sa_handler = sigint_handler,
-        .sa_flags = SA_RESTART,
+        .sa_flags = SA_RESTART, // if dont wanna give then use goto method
         .sa_mask = 0,
     };
 
@@ -38,15 +38,15 @@ int main(void)
     }
 
     printf("Enter a string:\n");
-
+    fgets(s, sizeof s, stdin);
     // restart:{                                                        // method 1
     //     if (fgets(s, sizeof s, stdin) == NULL) goto restart;
     //     printf("You entered: %s\n", s);
     //     exit(0);
     // }
-    if (fgets(s, sizeof s, stdin) == NULL)                              // method 2
-        perror("fgets");
-    else 
+    // if (fgets(s, sizeof s, stdin) == NULL)                              // method 2
+    //     perror("fgets");
+    // else 
         printf("You entered: %s\n", s);
 
     return 0;
