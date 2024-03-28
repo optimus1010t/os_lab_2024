@@ -29,6 +29,9 @@ int main(void)
         
         printf("Enter lines of text, ^D to quit:\n");
         buf.mtype = 1; /* we don't really care in this case */
+        // Zero	        Retrieve the next message on the queue, regardless of its mtype.
+        // Positive	    Get the next message with an mtype equal to the specified msgtyp.
+        // Negative	    Retrieve the first message on the queue whose mtype field is less than or equal to the absolute value of the msgtyp argument.       
         while(fgets(buf.mtext, sizeof buf.mtext, stdin) != NULL) {
             int len = strlen(buf.mtext);
             /* ditch newline at end, if it exists */
