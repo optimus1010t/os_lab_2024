@@ -75,7 +75,7 @@ int main(){
     sprintf(mq3,"%d",keymq3);
 
 
-    // passing key values for arguments, is that cool????
+    // passing key values for arguments, is that cool???? -> ye ig
 
     // child process to execute scheduler
     if(!fork()){
