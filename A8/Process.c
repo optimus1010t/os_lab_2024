@@ -15,24 +15,19 @@
 #define wait(s) semop(s, &pop, 1) 
 #define signall(s) semop(s, &vop, 1)
 
-struct msgbuf3_r{
+
+struct msgbuf {
     long mtype;
     int msg;
 };
 
-
-struct msgbuf1{
+struct msgbuf3 {  // standard for sending messages to the MMU
     long mtype;
-    int pid;
-};
-
-struct msgbuf3{
-    long mtype;
-    struct page_info{
+    struct info{
         int pid;
         int pageNumber;
         int msg;
-    } page_info;
+    } info;
 };
 
 int main(int argc, char *argv[]){
@@ -41,10 +36,10 @@ int main(int argc, char *argv[]){
     int mq1, mq3;
     mq1=atoi(argv[1]);
     mq3=atoi(argv[2]);
-    struct msgbuf1 buf1;
-    buf1.mtype = 1;
-    buf1.pid = getpid();
-    msgsnd(mq3,&buf1,sizeof(buf1.pid),0);
+    struct msgbuf buf;
+    buf.mtype = 1;
+    buf.pid = getpid();
+    msgsnd(mq3,&buf,sizeof(buf.msg),0);
 
     struct sembuf pop, vop ;
     pop.sem_num = vop.sem_num = 0;
@@ -59,12 +54,12 @@ int main(int argc, char *argv[]){
         int num = atoi(argv[i+3]);
         struct msgbuf3 buf3;
         buf3.mtype = 1;
-        buf3.page_info.pid = getpid();
-        buf3.page_info.pageNumber = num;
-        buf3.page_info.msg = 0;
-        msgsnd(mq3,&buf3,sizeof(buf3.page_info),0);
+        buf3.info.pid = getpid();
+        buf3.info.pageNumber = num;
+        buf3.info.msg = 0;
+        msgsnd(mq3,&buf3,sizeof(buf3.info),0);
 
-        struct msgbuf3_r buf3_r;
+        struct msgbuf buf3_r;
         msgrecv(mq3,&buf3_r,sizeof(buf3_r.msg),0);
 
         if (buf3_r.msg == -1) {
@@ -80,10 +75,9 @@ int main(int argc, char *argv[]){
     }
     struct msgbuf3 buf3;
     buf3.mtype = 1;
-    buf3.page_info.pid = getpid();
-    buf3.page_info.pageNumber = -1;
-    buf3.page_info.msg = -9;
-    msgsnd(mq3,&buf3,sizeof(buf3.page_info),0);
-    exit(0);
-    
+    buf3.info.pid = getpid();
+    buf3.info.pageNumber = -1;
+    buf3.info.msg = -9;
+    msgsnd(mq3,&buf3,sizeof(buf3.info),0);
+    exit(0);    
 }
