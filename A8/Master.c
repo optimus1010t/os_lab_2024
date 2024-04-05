@@ -12,10 +12,6 @@
 #include<fcntl.h>
 #include<time.h>
 
-
-#include <stdio.h>
-#include <stdlib.h>
-
 #define ARGS 10
 
 typedef struct pageTableEntry{ // page table entry
@@ -45,8 +41,8 @@ int main(){
     int sm1id=shmget(keysm1,k*m*sizeof(pageTableEntry),IPC_CREAT|0666);
     pageTableEntry *pageTables; // remember to detach and remove shared memory and free ????
     pageTables=(pageTableEntry*)shmat(sm1id,NULL,0);
-    for(int i=0;i<k;i++){
-        for(int j=0;j<m;j++){
+    for(int i=0;i<k;i++) {
+        for(int j=0;j<m;j++) {
             pageTables[m*i+j].valid = 0;
             pageTables[m*i+j].frameNumber = -1;
         }
@@ -58,12 +54,34 @@ int main(){
     freeFrameList *freeFrameListHead;
     freeFrameListHead=(freeFrameList*)shmat(sm2id,NULL,0);
 
+    // add all frames as free
+    freeFrameListHead->frameNumber = 0;
+    freeFrameListHead->next = NULL;
+    freeFrameList *temp = freeFrameListHead;
+    for(int i=1;i<f;i++) {
+        temp->next = (freeFrameList*)malloc(sizeof(freeFrameList));
+        temp = temp->next;
+        temp->frameNumber = i;
+        temp->next = NULL;
+    }
+
     // process to page number mapping
     int numOfPagesReqd[k];
 
-    for(int i=0;i<k;i++){
+    for(int i=0;i<k;i++) {
         numOfPagesReqd[i] = rand()%m + 1;
     }
+
+
+    int shm_k_id = shmget(ftok("MMU.c",'A'),sizeof(int),IPC_CREAT|0666);
+    int *shm_k_ptr = (int*)shmat(shm_k_id,NULL,0);
+    *shm_k_ptr = k;
+
+    int shm_m_f_table_id = shmget(ftok("MMU.c",'B'),(k+2)*sizeof(int),IPC_CREAT|0666);
+    int *shm_m_f_table_ptr = (int*)shmat(shm_m_f_table_id,NULL,0);
+    shm_m_f_table_ptr[0] = m;
+    shm_m_f_table_ptr[1] = f;
+    for (int i = 0; i < k; i++) shm_m_f_table_ptr[i+2] = numOfPagesReqd[i];
 
     // mq1, mq2 and mq3
     int keymq1=ftok("Master.c",'A');
@@ -75,22 +93,22 @@ int main(){
 
     char sm1[10], sm2[10], mq1[10], mq2[10], mq3[10];
     memset(sm1,0,10); memset(sm2,0,10); memset(mq1,0,10); memset(mq2,0,10); memset(mq3,0,10);
-    sprintf(sm1,"%d",sm1id);
-    sprintf(sm2,"%d",sm2id);
-    sprintf(mq1,"%d",mq1id);
-    sprintf(mq2,"%d",mq2id);
-    sprintf(mq3,"%d",mq3id);
+    sprintf(sm1,"%d",keysm1);
+    sprintf(sm2,"%d",keysm2);
+    sprintf(mq1,"%d",keymq1);
+    sprintf(mq2,"%d",keymq2);
+    sprintf(mq3,"%d",keymq3);
 
 
     // passing ids as cmd line args
 
     // child process to execute scheduler
-    if(!fork()){
+    if(!fork()) {
         execlp("./Scheduler","Scheduler",mq1,mq2,NULL);
     }
 
     // child process to execute MMU
-    if(!fork()){
+    if(!fork()) {
         execlp("./MMU","MMU",mq2,mq3,sm1,sm2,NULL);
     }
 
@@ -117,14 +135,14 @@ int main(){
                     // sprintf(vec[j+1],"%d",rand()%numOfPagesReqd[i]+1);   // shouldnt this be the one ????
                 } 
             }
-            else{
+            else {
                 sprintf(vec[j],"%d",rand()%numOfPagesReqd[i]);
             }
         }
         for (int k = 0; k < ARGS; k++) vec[len+3][k]='\0';
 
         // child process to execute process
-        if(!fork()){
+        if(!fork()) {
             // execlp("./Process","Process",mq1,mq3,vec,NULL);
             execvp("./Process",vec);
         }

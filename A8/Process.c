@@ -33,9 +33,12 @@ struct msgbuf3 {  // standard for sending messages to the MMU
 int main(int argc, char *argv[]){
     int semid = semget(ftok("Process.c", getpid()), 1, IPC_CREAT|0666);
     for (int i = 0; i < 1; i++) semctl(semid, i, SETVAL, 0);
+    int keymq1, keymq3;
+    keymq1=atoi(argv[1]);
+    keymq3=atoi(argv[2]);
     int mq1, mq3;
-    mq1=atoi(argv[1]);
-    mq3=atoi(argv[2]);
+    mq1 = msgget(keymq1, IPC_CREAT|0666);
+    mq3 = msgget(keymq3, IPC_CREAT|0666);
     struct msgbuf buf;
     buf.mtype = 1;
     buf.msg = getpid();
@@ -67,6 +70,7 @@ int main(int argc, char *argv[]){
             // signall(semid);  // scheduler will go on to the next process
             pop.sem_num = vop.sem_num = 0;
             wait(semid);
+            i--;
         }
         else if (buf3_r.msg == -2) {
             // terminate itself
