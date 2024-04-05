@@ -38,7 +38,7 @@ int main(int argc, char *argv[]){
     mq3=atoi(argv[2]);
     struct msgbuf buf;
     buf.mtype = 1;
-    buf.pid = getpid();
+    buf.msg = getpid();
     msgsnd(mq3,&buf,sizeof(buf.msg),0);
 
     struct sembuf pop, vop ;
