@@ -31,15 +31,15 @@ struct msgbuf3 {  // standard for sending messages to the MMU
 };
 
 int main(int argc, char *argv[]){
-    int semid = semget(ftok("Process.c", getpid()), 2, IPC_CREAT|0666);
-    for (int i = 0; i < 2; i++) semctl(semid, i, SETVAL, 0);
+    int semid = semget(ftok("Process.c", getpid()), 1, IPC_CREAT|0666);
+    for (int i = 0; i < 1; i++) semctl(semid, i, SETVAL, 0);
     int mq1, mq3;
     mq1=atoi(argv[1]);
     mq3=atoi(argv[2]);
     struct msgbuf buf;
     buf.mtype = 1;
     buf.msg = getpid();
-    msgsnd(mq3,&buf,sizeof(buf.msg),0);
+    msgsnd(mq1,&buf,sizeof(buf.msg),0);
 
     struct sembuf pop, vop ;
     pop.sem_num = vop.sem_num = 0;
@@ -63,13 +63,14 @@ int main(int argc, char *argv[]){
         msgrecv(mq3,&buf3_r,sizeof(buf3_r.msg),0);
 
         if (buf3_r.msg == -1) {
-            pop.sem_num = vop.sem_num = 1;
-            signall(semid);  // scheduler will go on to the next process
+            // pop.sem_num = vop.sem_num = 1;
+            // signall(semid);  // scheduler will go on to the next process
             pop.sem_num = vop.sem_num = 0;
             wait(semid);
         }
         else if (buf3_r.msg == -2) {
             // terminate itself
+            semctl(semid, 0, IPC_RMID, 0);
             exit(0);
         }
     }
@@ -79,5 +80,6 @@ int main(int argc, char *argv[]){
     buf3.info.pageNumber = -1;
     buf3.info.msg = -9;
     msgsnd(mq3,&buf3,sizeof(buf3.info),0);
+    semctl(semid, 0, IPC_RMID, 0);
     exit(0);    
 }
