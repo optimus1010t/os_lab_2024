@@ -68,14 +68,14 @@ int main(){
     int mq3id=msgget(keymq3,IPC_CREAT|0666);
 
     char sm1[10], sm2[10], mq1[10], mq2[10], mq3[10];
-    sprintf(sm1,"%d",keysm1);
-    sprintf(sm2,"%d",keysm2);
-    sprintf(mq1,"%d",keymq1);
-    sprintf(mq2,"%d",keymq2);
-    sprintf(mq3,"%d",keymq3);
+    sprintf(sm1,"%d",sm1id);
+    sprintf(sm2,"%d",sm2id);
+    sprintf(mq1,"%d",mq1id);
+    sprintf(mq2,"%d",mq2id);
+    sprintf(mq3,"%d",mq3id);
 
 
-    // passing key values for arguments, is that cool???? -> ye ig
+    // passing ids as cmd line args
 
     // child process to execute scheduler
     if(!fork()){
@@ -92,13 +92,32 @@ int main(){
         
         //generate reference string
         int len=rand()%(8*numOfPagesReqd[i]+1)+2*numOfPagesReqd[i];
-        char refString[len+1];
-        // generate random reference string(not done yet????)
-
+        char vec[len+4][10];
+        strcpy(vec[0],"Process");
+        strcpy(vec[1],mq1);
+        strcpy(vec[2],mq3);
+        // generate random reference string
+        for(int j=3; j<len; j++){
+            int prob=rand()%100;
+            if(prob<20){
+                prob=rand()%100;
+                if(prob<20){
+                    sprintf(vec[j],"%d",m);
+                }
+                else{
+                    sprintf(vec[j],"%d",numOfPagesReqd[i]+rand()%(m-numOfPagesReqd[i]+1));
+                }
+            }
+            else{
+                sprintf(vec[j],"%d",rand()%numOfPagesReqd[i]);
+            }
+        }
+        vec[len+3][0]='\0';
 
         // child process to execute process
         if(!fork()){
-            execlp("./Process","Process",mq1,mq3,refString,NULL);
+            // execlp("./Process","Process",mq1,mq3,vec,NULL);
+            execvp("./Process",vec);
         }
     }
 
