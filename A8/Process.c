@@ -30,8 +30,18 @@ struct msgbuf3 {  // standard for sending messages to the MMU
     } info;
 };
 
+int semq1, semq3;
+
 int main(int argc, char *argv[]){
     int id = atoi(argv[3]);
+    semq1 = semget(ftok("Master.c",'G'), 1, IPC_CREAT|0666);
+    semq3 = semget(ftok("Master.c",'I'), 1, IPC_CREAT|0666);
+
+    struct sembuf pop, vop ;
+    pop.sem_num = vop.sem_num = 0;
+    pop.sem_flg = vop.sem_flg = 0;
+    pop.sem_op = -1; vop.sem_op = 1;
+    
     printf("in process %d\n", id);
     int semid = semget(ftok("Process.c", id), 1, IPC_CREAT|0666);
     for (int i = 0; i < 1; i++) semctl(semid, i, SETVAL, 0);
@@ -45,11 +55,11 @@ int main(int argc, char *argv[]){
     buf.mtype = 1;
     buf.msg = id;
     msgsnd(mq1,&buf,sizeof(buf.msg),0);
-
-    struct sembuf pop, vop ;
-    pop.sem_num = vop.sem_num = 0;
-    pop.sem_flg = vop.sem_flg = 0;
-    pop.sem_op = -1; vop.sem_op = 1;
+    printf("was here1\n");
+    fflush(stdout);
+    wait(semq1);
+    printf("was here2\n");
+    fflush(stdout);
 
     wait(semid);
     int len = argc - 4;
@@ -63,9 +73,11 @@ int main(int argc, char *argv[]){
         buf3.info.pageNumber = num;
         buf3.info.msg = 0;
         msgsnd(mq3,&buf3,sizeof(buf3.info),0);
+        wait(semq3);
 
         struct msgbuf buf3_r;
         msgrcv(mq3,&buf3_r,sizeof(buf3_r.msg),0,0);
+        signall(semq3);
 
         if (buf3_r.msg == -1) {
             // pop.sem_num = vop.sem_num = 1;
@@ -86,6 +98,7 @@ int main(int argc, char *argv[]){
     buf3.info.pageNumber = -1;
     buf3.info.msg = -9;
     msgsnd(mq3,&buf3,sizeof(buf3.info),0);
+    wait(semq3);
     semctl(semid, 0, IPC_RMID, 0);
     exit(0);    
 }
