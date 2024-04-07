@@ -43,30 +43,46 @@ struct msgbuf3 {  // standard for sending messages to the MMU
 
 void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *freeFrameListHead, pageTableEntry *pageTables, int *table_assgn, int k, int m, int f){
     // find a free frame
-    freeFrameList *temp = freeFrameListHead;
-    if (temp->frameNumber == -1) {
-        // no free frame
-        int flag = -1;
-        for (int i = 0; i < k; i++) {
-            if (table_assgn[i] == pid) {
-                flag = i;
+    freeFrameList *temp = freeFrameListHead->next;
+    if (temp!=NULL) {
+        int flag=pid;
+        // send a message to the process
+        int frameNumber = temp->frameNumber;
+        for(int i=0;i<m;i++){
+            if(pageTables[m*flag+i].valid == 0){
+                pageTables[m*flag+i].valid = 1;
+                pageTables[m*flag+i].frameNumber = frameNumber;
                 break;
             }
         }
-        if (flag == -1) return;
-        // find a page to replace with valid bit 1  LRU ???? not implemented
-        int page_to_replace = rand() % m;
-        while (pageTables[m*flag+page_to_replace].valid == 0) {
-            page_to_replace = rand() % m;
-        }
-        // assign the new page to the frame
-        pageTables[m*flag+pageNumber-1].valid = 1;
-        pageTables[m*flag+pageNumber-1].frameNumber = pageTables[m*flag+page_to_replace].frameNumber;
-        // send a message to the process
         struct msgbuf buf;
         buf.mtype = 1;
         buf.msg = pid;
         msgsnd(mq2,&buf,sizeof(buf.msg),0);
+    }
+    else {
+        int flag=0;
+        for(int i=0;i<m;i++){
+            if(pageTables[m*pid+i].valid){
+                flag=1;
+                break;
+            }
+        }
+        if(!flag){
+            // send a message to the MMU
+            struct msgbuf buf;
+            buf.mtype = 1;
+            buf.msg = pid;
+            msgsnd(mq2,&buf,sizeof(buf.msg),0);
+        }
+        else{
+            // find a page to replace with valid bit 1  LRU ???? not implemented
+            // ????for now, stupid mkaeshift code
+            int page_to_replace = 0;
+            // assign the new page to the frame
+            pageTables[m*flag+pageNumber-1].valid = 1;
+            pageTables[m*flag+pageNumber-1].frameNumber = pageTables[m*flag+page_to_replace].frameNumber;
+        }
     }
 }
 
@@ -113,16 +129,10 @@ int main(int argc, char *argv[]){
         int pageNumber = buf3.info.pageNumber;
         int pid = buf3.info.pid;
         int msg = buf3.info.msg;
+        printf("process %d: ", pid);
         if (msg == -9) {
             // add the frames in its page table to the free list
-            int flag = -1;
-            for (int i = 0; i < k; i++) {
-                if (table_assgn[i] == pid) {
-                    flag = i;
-                    break;
-                }
-            }
-            if (flag == -1) continue;
+            int flag = pid;
             freeFrameList *temp = freeFrameListHead;
             while (temp->next != NULL) temp = temp->next;
             for (int i = 0; i < m; i++) {
@@ -136,44 +146,38 @@ int main(int argc, char *argv[]){
             struct msgbuf buf;
             buf.mtype = 2;
             buf.msg = pid;
-            msgsnd(mq2,&buf,sizeof(buf.msg),0);           
+            msgsnd(mq2,&buf,sizeof(buf.msg),0);   
+            printf("terminated\n");        
         }
         else {
-            int flag = -1, first_free = -1;
-            for (int i = 0; i < k; i++) {
-                if (table_assgn[i] == -1 && first_free == -1) {
-                    first_free = i;
-                }
-                if (table_assgn[i] == pid) {
-                    flag = i;
-                    break;
-                }
-            }
-            if (flag == -1) {
-                if (first_free == -1) {
-                    // no free space ???? send a message to the scheduler ????                    
-                }
-                else {
-                    // assign the process to the first free space
-                    table_assgn[first_free] = pid;
-                    flag = first_free;
-                }
-            }
+            int flag = pid;
             // check if the page is already in the memory
+            if(pageNumber > maxPageindex[flag]) {
+                struct msgbuf buf;
+                buf.mtype = 1;
+                buf.msg = -2;
+                msgsnd(mq3,&buf,sizeof(buf.msg),0);
+                buf.mtype = 2;
+                buf.msg = pid;
+                msgsnd(mq2,&buf,sizeof(buf.msg),0);
+                printf("seg fault\n");
+                continue;
+            }
             if (pageTables[m*flag+pageNumber-1].valid == 1) {
                 // send a message to the process
                 struct msgbuf buf;
                 buf.mtype = 1;
                 buf.msg = pageTables[m*flag+pageNumber-1].frameNumber;
                 msgsnd(mq2,&buf,sizeof(buf.msg),0);
+                printf("assigned framenumber %d to page %d\n", buf.msg,pageNumber);
             }
             else {
-                // check if the page is in range or not
                 // page fault
                 struct msgbuf buf;
                 buf.mtype = 1;
                 buf.msg = -1;
                 msgsnd(mq2,&buf,sizeof(buf.msg),0);
+                printf("page fault @ %d\n", pageNumber);
                 PageFaultHandler(pageNumber, pid, mq2, mq3, freeFrameListHead, pageTables, table_assgn, k, m, f);
             }
         }

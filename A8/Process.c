@@ -31,7 +31,9 @@ struct msgbuf3 {  // standard for sending messages to the MMU
 };
 
 int main(int argc, char *argv[]){
-    int semid = semget(ftok("Process.c", getpid()), 1, IPC_CREAT|0666);
+    int id = atoi(argv[3]);
+    printf("in process %d\n", id);
+    int semid = semget(ftok("Process.c", id), 1, IPC_CREAT|0666);
     for (int i = 0; i < 1; i++) semctl(semid, i, SETVAL, 0);
     int keymq1, keymq3;
     keymq1=atoi(argv[1]);
@@ -41,7 +43,7 @@ int main(int argc, char *argv[]){
     mq3 = msgget(keymq3, IPC_CREAT|0666);
     struct msgbuf buf;
     buf.mtype = 1;
-    buf.msg = getpid();
+    buf.msg = id;
     msgsnd(mq1,&buf,sizeof(buf.msg),0);
 
     struct sembuf pop, vop ;
@@ -50,20 +52,20 @@ int main(int argc, char *argv[]){
     pop.sem_op = -1; vop.sem_op = 1;
 
     wait(semid);
-    int len = argc - 3;
+    int len = argc - 4;
 
     for (int i = 0; i < len; i++){
         // extract the number from the argument
-        int num = atoi(argv[i+3]);
+        int num = atoi(argv[i+4]);
         struct msgbuf3 buf3;
         buf3.mtype = 1;
-        buf3.info.pid = getpid();
+        buf3.info.pid = id;
         buf3.info.pageNumber = num;
         buf3.info.msg = 0;
         msgsnd(mq3,&buf3,sizeof(buf3.info),0);
 
         struct msgbuf buf3_r;
-        msgrecv(mq3,&buf3_r,sizeof(buf3_r.msg),0);
+        msgrcv(mq3,&buf3_r,sizeof(buf3_r.msg),0,0);
 
         if (buf3_r.msg == -1) {
             // pop.sem_num = vop.sem_num = 1;
@@ -80,7 +82,7 @@ int main(int argc, char *argv[]){
     }
     struct msgbuf3 buf3;
     buf3.mtype = 1;
-    buf3.info.pid = getpid();
+    buf3.info.pid = id;
     buf3.info.pageNumber = -1;
     buf3.info.msg = -9;
     msgsnd(mq3,&buf3,sizeof(buf3.info),0);
