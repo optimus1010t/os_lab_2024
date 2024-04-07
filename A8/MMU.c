@@ -73,37 +73,42 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
         // remove the frame from the free list
         freeFrameListHead->next = temp->next;
         free(temp);
-        // send a message to the process
+
+        // send a type 1 message to the scheduler
         struct msgbuf buf;
         buf.mtype = 1;
         buf.msg = pid;
         msgsnd(mq2,&buf,sizeof(buf.msg),0);
     }
+    // if no free frame is available
     else {
         int flag=0;
+        // check if the set is empty
         for(int i=0;i<m;i++){
             if(pageTables[m*pid+i].valid){
                 flag=1;
                 break;
             }
         }
+        // if set is empty, can't do anything, so sending message to scheduler to enqueue the process for later, is that correct????
         if(!flag){
-            // send a message to the MMU
             struct msgbuf buf;
             buf.mtype = 1;
             buf.msg = pid;
             msgsnd(mq2,&buf,sizeof(buf.msg),0);
         }
         else{
-            // if set is full, replace the page with the highest time
-            int page_to_replace = 0;
-            int max = pageTables[m*flag].lastUsedAt;
-            for(int i=1;i<m;i++){
-                if(pageTables[m*flag+i].lastUsedAt > max){
+            // if set is not empty, replace the page with the highest time
+            int page_to_replace = -1;
+            int max = -1;
+            for(int i=0;i<m;i++){
+                if(i==pageNumber) continue;     // redundant, but still
+                if(pageTables[m*flag+i].valid==1 && pageTables[m*flag+i].lastUsedAt > max){
                     max = pageTables[m*flag+i].lastUsedAt;
                     page_to_replace = i;
                 }
             }
+
             // assign the new page to the frame
             pageTables[m*flag+pageNumber].valid = 1;
             pageTables[m*flag+pageNumber].frameNumber = pageTables[m*flag+page_to_replace].frameNumber;
@@ -117,7 +122,7 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
             pageTables[m*flag+page_to_replace].frameNumber = -1;
             pageTables[m*flag+page_to_replace].lastUsedAt = -1;
 
-            // send a message to the process
+            // send a type 1 message to the scheduler
             struct msgbuf buf;
             buf.mtype = 1;
             buf.msg = pid;
@@ -127,7 +132,6 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
 }
 
 int main(int argc, char *argv[]){
-
     struct sembuf pop, vop ;
     pop.sem_num = vop.sem_num = 0;
     pop.sem_flg = vop.sem_flg = 0;
@@ -179,7 +183,7 @@ int main(int argc, char *argv[]){
         int msg = buf3.info.msg;
         printf("Global Ordering: (%ld, %d, %d)\n", globaltime, pid, pageNumber);
         // printf("process %d: ", pid);
-        if (msg == -9) {
+        if (pageNumber == -9) {
             // add the frames in its page table to the free list
             int flag = pid;
             freeFrameList *temp = freeFrameListHead;

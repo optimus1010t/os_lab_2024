@@ -90,7 +90,7 @@ int main(int argc, char *argv[]){
     struct msgbuf3 buf3;
     buf3.mtype = 1e9;
     buf3.info.pid = id;
-    buf3.info.pageNumber = -1;
+    buf3.info.pageNumber = -9;
     buf3.info.msg = -9;
     msgsnd(mq3,&buf3,sizeof(buf3.info),0);
     semctl(semid, 0, IPC_RMID, 0);
