@@ -18,8 +18,6 @@
 
 long int globaltime=0;
 
-int semq1, semq2, semq3;
-
 
 typedef struct pageTableEntry{ // page table entry
     int frameNumber;
@@ -80,7 +78,6 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
         buf.mtype = 1;
         buf.msg = pid;
         msgsnd(mq2,&buf,sizeof(buf.msg),0);
-        wait(semq2);
     }
     else {
         int flag=0;
@@ -96,7 +93,6 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
             buf.mtype = 1;
             buf.msg = pid;
             msgsnd(mq2,&buf,sizeof(buf.msg),0);
-            wait(semq2);
         }
         else{
             // if set is full, replace the page with the highest time
@@ -126,15 +122,11 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
             buf.mtype = 1;
             buf.msg = pid;
             msgsnd(mq2,&buf,sizeof(buf.msg),0);
-            wait(semq2);
         }
     }
 }
 
 int main(int argc, char *argv[]){
-    semq1 = semget(ftok("Master.c",'G'), 1, IPC_CREAT|0666);
-    semq2 = semget(ftok("Master.c",'H'), 1, IPC_CREAT|0666);
-    semq3 = semget(ftok("Master.c",'I'), 1, IPC_CREAT|0666);
 
     struct sembuf pop, vop ;
     pop.sem_num = vop.sem_num = 0;
@@ -175,8 +167,7 @@ int main(int argc, char *argv[]){
     while (1) {
         globaltime++;
         struct msgbuf3 buf3;
-        msgrcv(mq3,&buf3,sizeof(buf3.info),0,0);
-        signall(semq3);
+        msgrcv(mq3,&buf3,sizeof(buf3.info),1e9,0);
         int pageNumber = buf3.info.pageNumber;
         int pid = buf3.info.pid;
         int msg = buf3.info.msg;
@@ -199,7 +190,6 @@ int main(int argc, char *argv[]){
             buf.mtype = 2;
             buf.msg = pid;
             msgsnd(mq2,&buf,sizeof(buf.msg),0);   
-            wait(semq2);
             printf("terminated\n");        
         }
         else {
@@ -208,19 +198,17 @@ int main(int argc, char *argv[]){
             if(pageNumber > maxPageindex[flag]) {
                 // illegal access
                 struct msgbuf3 buf3;
-                buf3.mtype = 1;
+                buf3.mtype = pid+1;
                 buf3.info.pid = pid;
                 buf3.info.pageNumber = pageNumber;
                 buf3.info.msg = -2;
                 // buf3.mtype = 1;
                 // buf3.msg = -2;
                 msgsnd(mq3,&buf3,sizeof(buf3.info),0);
-                wait(semq3);
                 struct msgbuf buf;
                 buf.mtype = 2;
                 buf.msg = pid;
                 msgsnd(mq2,&buf,sizeof(buf.msg),0);
-                wait(semq2);
                 printf("seg fault\n");
                 continue;
             }
@@ -235,22 +223,22 @@ int main(int argc, char *argv[]){
                 pageTables[m*flag+pageNumber].lastUsedAt = 0;
 
                 // send a message to the process
-                struct msgbuf buf;
-                buf.mtype = 1;
-                buf.msg = pageTables[m*flag+pageNumber].frameNumber;
-                msgsnd(mq2,&buf,sizeof(buf.msg),0);
-                wait(semq2);
-                printf("assigned framenumber %d to page %d\n", buf.msg,pageNumber);
+                struct msgbuf3 buf;
+                buf.mtype=pid+1;
+                buf.info.msg=pageTables[m*flag+pageNumber].frameNumber;
+                buf.info.pageNumber=pageTables[m*flag+pageNumber].frameNumber;
+                buf.info.pid=pid;
+                msgsnd(mq3,&buf,sizeof(buf.info),0);
+                printf("assigned framenumber %d to page %d\n", buf.info.msg,pageNumber);
             }
             else {
                 // page fault
                 struct msgbuf3 buf;
-                buf.mtype = 1;
+                buf.mtype = pid+1;
                 buf.info.pid = pid;
                 buf.info.pageNumber = -1;
                 buf.info.msg = -1;
                 msgsnd(mq3,&buf,sizeof(buf.info),0);
-                wait(semq3);
                 printf("page fault @ %d\n", pageNumber);
                 PageFaultHandler(pageNumber, pid, mq2, mq3, freeFrameListHead, pageTables, table_assgn, k, m, f);
             }
