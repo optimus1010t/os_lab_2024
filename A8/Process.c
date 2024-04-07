@@ -72,21 +72,27 @@ int main(int argc, char *argv[]){
         buf3.info.pid = id;
         buf3.info.pageNumber = num;
         buf3.info.msg = 0;
+        printf("Process %d sending page %d\n", id, num);
         msgsnd(mq3,&buf3,sizeof(buf3.info),0);
         wait(semq3);
 
-        struct msgbuf buf3_r;
-        msgrcv(mq3,&buf3_r,sizeof(buf3_r.msg),0,0);
+        struct msgbuf3 buf3_r;
+        msgrcv(mq3,&buf3_r,sizeof(buf3_r.info),0,0);
+        while(buf3.info.pid!=id){
+            msgsnd(mq3,&buf3_r,sizeof(buf3_r.info),0);
+            msgrcv(mq3,&buf3_r,sizeof(buf3_r.info),0,0);
+        }
+        
         signall(semq3);
 
-        if (buf3_r.msg == -1) {
+        if (buf3_r.info.msg == -1) {
             // pop.sem_num = vop.sem_num = 1;
             // signall(semid);  // scheduler will go on to the next process
             pop.sem_num = vop.sem_num = 0;
             wait(semid);
             i--;
         }
-        else if (buf3_r.msg == -2) {
+        else if (buf3_r.info.msg == -2) {
             // terminate itself
             semctl(semid, 0, IPC_RMID, 0);
             exit(0);

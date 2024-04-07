@@ -207,11 +207,16 @@ int main(int argc, char *argv[]){
             // check if the page is already in the memory
             if(pageNumber > maxPageindex[flag]) {
                 // illegal access
-                struct msgbuf buf;
-                buf.mtype = 1;
-                buf.msg = -2;
-                msgsnd(mq3,&buf,sizeof(buf.msg),0);
+                struct msgbuf3 buf3;
+                buf3.mtype = 1;
+                buf3.info.pid = pid;
+                buf3.info.pageNumber = pageNumber;
+                buf3.info.msg = -2;
+                // buf3.mtype = 1;
+                // buf3.msg = -2;
+                msgsnd(mq3,&buf3,sizeof(buf3.info),0);
                 wait(semq3);
+                struct msgbuf buf;
                 buf.mtype = 2;
                 buf.msg = pid;
                 msgsnd(mq2,&buf,sizeof(buf.msg),0);
@@ -239,11 +244,13 @@ int main(int argc, char *argv[]){
             }
             else {
                 // page fault
-                struct msgbuf buf;
+                struct msgbuf3 buf;
                 buf.mtype = 1;
-                buf.msg = -1;
-                msgsnd(mq2,&buf,sizeof(buf.msg),0);
-                wait(semq2);
+                buf.info.pid = pid;
+                buf.info.pageNumber = -1;
+                buf.info.msg = -1;
+                msgsnd(mq3,&buf,sizeof(buf.info),0);
+                wait(semq3);
                 printf("page fault @ %d\n", pageNumber);
                 PageFaultHandler(pageNumber, pid, mq2, mq3, freeFrameListHead, pageTables, table_assgn, k, m, f);
             }

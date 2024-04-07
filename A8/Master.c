@@ -154,7 +154,7 @@ int main(){
 
     // child process to execute MMU
     if(fork()==0) {
-        execlp("./MMU","./MMU",mq2,mq3,sm1,sm2,NULL);
+        execlp("xterm", "xterm", "-T", "MMU", "-e", "./MMU","./MMU",mq2,mq3,sm1,sm2,NULL);
         perror("error2\n");
     }
 
