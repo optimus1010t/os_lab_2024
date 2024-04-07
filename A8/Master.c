@@ -81,10 +81,13 @@ int main(){
     }
 
     for(int i=0;i<k;i++){
+        int lu=0;
         int toAllocate=(numOfPagesReqd[i]*f)/totalNumOfPagesReqd;
-        for(int j=0;j<toAllocate;j++){
+        for(int j=0;(frameNumber<f)&&(j<((numOfPagesReqd[i]<toAllocate)?numOfPagesReqd[i]:toAllocate));j++){
             pageTables[m*i+j].frameNumber = frameNumber;
             pageTables[m*i+j].valid = 1;
+            pageTables[m*i+j].lastUsedAt=lu;
+            lu++;
             frameNumber++;
         }
     }
@@ -129,7 +132,6 @@ int main(){
     int sem1=semget(keysem1,1,IPC_CREAT|0666);
     semctl(sem1,0,SETVAL,0);
 
-
     // passing keyss as cmd line args
 
     // child process to execute scheduler
@@ -163,15 +165,24 @@ int main(){
             if(prob < 20){
                 prob = rand()%100;
                 if(prob < 20) {
-                    int illegal = rand()+m;
+                    // illegal
+                    int illegal = rand()+numOfPagesReqd[i];
                     sprintf(vec[j],"%d\0",illegal);
                 }
                 else {
-                    int pg=rand()%numOfPagesReqd[i];
+                    // invalid but legal
+                    int toAllocate=(numOfPagesReqd[i]*f)/totalNumOfPagesReqd;
+                    int min2 = (numOfPagesReqd[i]<toAllocate)?numOfPagesReqd[i]:toAllocate;
+                    if (min2 == numOfPagesReqd[i]) {
+                        j--;
+                        continue;
+                    }
+                    int pg=min2+rand()%(numOfPagesReqd[i]-min2);
                     sprintf(vec[j],"%d\0",pg);
                 } 
             }
             else {
+                // legal
                 sprintf(vec[j],"%d\0",rand()%numOfPagesReqd[i]);
             }
             printf("%s ",vec[j]);
@@ -202,6 +213,7 @@ int main(){
     msgctl(mq1id,IPC_RMID,NULL);
     msgctl(mq2id,IPC_RMID,NULL);
     msgctl(mq3id,IPC_RMID,NULL);
+    semctl(sem1,0,IPC_RMID);
 
     return 0;
 }

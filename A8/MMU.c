@@ -142,6 +142,12 @@ int main(int argc, char *argv[]){
     int m = shm_m_f_table_ptr[0];
     int f = shm_m_f_table_ptr[1];
 
+    int pageFaults[k];
+    memset(pageFaults,0,sizeof(pageFaults));
+
+    int invalidPageReferences[k];
+    memset(invalidPageReferences,0,sizeof(invalidPageReferences));
+
     int maxPageindex[k];
     for(int i=0;i<k;i++) maxPageindex[i] = shm_m_f_table_ptr[i+2];
 
@@ -172,7 +178,7 @@ int main(int argc, char *argv[]){
         int pid = buf3.info.pid;
         int msg = buf3.info.msg;
         printf("Global Ordering: (%ld, %d, %d)\n", globaltime, pid, pageNumber);
-        printf("process %d: ", pid);
+        // printf("process %d: ", pid);
         if (msg == -9) {
             // add the frames in its page table to the free list
             int flag = pid;
@@ -209,7 +215,9 @@ int main(int argc, char *argv[]){
                 buf.mtype = 2;
                 buf.msg = pid;
                 msgsnd(mq2,&buf,sizeof(buf.msg),0);
-                printf("seg fault\n");
+                // printf("seg fault\n");
+                printf("Invalid Page Reference: (%d, %d)\n", pid, pageNumber);
+                invalidPageReferences[pid]++;
                 continue;
             }
             if (pageTables[m*flag+pageNumber].valid == 1) {
@@ -239,7 +247,8 @@ int main(int argc, char *argv[]){
                 buf.info.pageNumber = -1;
                 buf.info.msg = -1;
                 msgsnd(mq3,&buf,sizeof(buf.info),0);
-                printf("page fault @ %d\n", pageNumber);
+                printf("\tPage Fault Sequence: (%d,%d)\n", pid, pageNumber);
+                pageFaults[pid]++;
                 PageFaultHandler(pageNumber, pid, mq2, mq3, freeFrameListHead, pageTables, table_assgn, k, m, f);
             }
         }

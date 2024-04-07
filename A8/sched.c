@@ -20,14 +20,6 @@ struct msgbuf {
     int msg;
 };
 
-// struct msgbuf2 {
-//     long mtype;
-//     struct info{
-//         int pid;
-//         int msg;
-//     } info;
-// };
-
 int main(int argc, char *argv[]){
     struct sembuf pop, vop ;
     pop.sem_num = vop.sem_num = 0;
@@ -55,6 +47,7 @@ int main(int argc, char *argv[]){
     while(numOfTerminatedProcesses < *shm_k_ptr){
         msgrcv(mq1,&buf,sizeof(buf.msg),1e9,0);
         printf("Process %d taken from ready queue\n", buf.msg);
+        // buf.msg should contain the id
         int semid = semget(ftok("Process.c", buf.msg), 1, IPC_CREAT|0666);
         // send signal to the process
         pop.sem_num = vop.sem_num = 0;
@@ -64,6 +57,7 @@ int main(int argc, char *argv[]){
         msgrcv(mq2,&buf2,sizeof(buf2.msg),0,0);
         // notification from MMU received
         if (buf2.mtype == 1) {
+            // page fault handled, enqueing process back to ready queue
             struct msgbuf buff;
             buff.mtype = 1;
             buff.msg = buf2.msg;
@@ -71,9 +65,10 @@ int main(int argc, char *argv[]){
         }
         else if (buf2.mtype == 2) {
             numOfTerminatedProcesses++;
-            continue;
         }
     }
     signall(sem1);
     // can it end itself or we needa wait for master to kill????
+    shmdt(shm_k_ptr);
+    return 0;
 }

@@ -51,10 +51,10 @@ int main(int argc, char *argv[]){
     buf.mtype = 1e9;
     buf.msg = id;
     msgsnd(mq1,&buf,sizeof(buf.msg),0);
-    printf("was here1\n");
-    fflush(stdout);
-    printf("was here2\n");
-    fflush(stdout);
+    // printf("was here1\n");
+    // fflush(stdout);
+    // printf("was here2\n");
+    // fflush(stdout);
 
     wait(semid);
     int len = argc - 4;
@@ -63,6 +63,7 @@ int main(int argc, char *argv[]){
         // extract the number from the argument
         int num = atoi(argv[i+4]);
         struct msgbuf3 buf3;
+        // process sends MMU ONLY with type 1e9
         buf3.mtype = 1e9;
         buf3.info.pid = id;
         buf3.info.pageNumber = num;
@@ -87,7 +88,7 @@ int main(int argc, char *argv[]){
         }
     }
     struct msgbuf3 buf3;
-    buf3.mtype = 1;
+    buf3.mtype = 1e9;
     buf3.info.pid = id;
     buf3.info.pageNumber = -1;
     buf3.info.msg = -9;
