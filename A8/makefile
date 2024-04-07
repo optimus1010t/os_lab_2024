@@ -2,13 +2,13 @@ Master: sched MMU Process Master.c
 	gcc -o Master Master.c
 
 
-sched:
+sched: sched.c
 	gcc -o sched sched.c
 
-MMU:
+MMU: MMU.c
 	gcc -o MMU MMU.c
 
-Process:
+Process: Process.c
 	gcc -o Process Process.c
 
 clean:
