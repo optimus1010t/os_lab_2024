@@ -148,7 +148,7 @@ int main(){
 
     for(int i = 0; i < k; i++){
         printf("creating process %d\n",i);
-        usleep(250000);      
+        sleep(2);      
         //generate reference string
         int len = rand()%(8*numOfPagesReqd[i]+1)+2*numOfPagesReqd[i];
         printf("Reference string of length %d\n", len);

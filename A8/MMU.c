@@ -177,7 +177,7 @@ int main(int argc, char *argv[]){
     while (1) {
         globaltime++;
         struct msgbuf3 buf3;
-        msgrcv(mq3,&buf3,sizeof(buf3.info),1e9,0);
+        msgrcv(mq3,&buf3,sizeof(buf3.info),1e6,0);
         int pageNumber = buf3.info.pageNumber;
         int pid = buf3.info.pid;
         int msg = buf3.info.msg;
@@ -214,6 +214,7 @@ int main(int argc, char *argv[]){
                 buf3.info.msg = -2;
                 // buf3.mtype = 1;
                 // buf3.msg = -2;
+                printf("Sending (%d, %d, %d)\n", pid, pageNumber, -2);
                 msgsnd(mq3,&buf3,sizeof(buf3.info),0);
                 struct msgbuf buf;
                 buf.mtype = 2;
@@ -240,6 +241,7 @@ int main(int argc, char *argv[]){
                 buf.info.msg=pageTables[m*flag+pageNumber].frameNumber;
                 buf.info.pageNumber=pageTables[m*flag+pageNumber].frameNumber;
                 buf.info.pid=pid;
+                printf("Sending (%d, %d, %d)\n", pid, pageNumber, pageTables[m*flag+pageNumber].frameNumber);
                 msgsnd(mq3,&buf,sizeof(buf.info),0);
                 printf("assigned framenumber %d to page %d\n", buf.info.msg,pageNumber);
             }
@@ -250,6 +252,7 @@ int main(int argc, char *argv[]){
                 buf.info.pid = pid;
                 buf.info.pageNumber = -1;
                 buf.info.msg = -1;
+                printf("Sending (%d, %d, %d)\n", pid, pageNumber, -1);
                 msgsnd(mq3,&buf,sizeof(buf.info),0);
                 printf("\tPage Fault Sequence: (%d,%d)\n", pid, pageNumber);
                 pageFaults[pid]++;

@@ -48,7 +48,7 @@ int main(int argc, char *argv[]){
     mq1 = msgget(keymq1, IPC_CREAT|0666);
     mq3 = msgget(keymq3, IPC_CREAT|0666);
     struct msgbuf buf;
-    buf.mtype = 1e9;
+    buf.mtype = 1e6;
     buf.msg = id;
     msgsnd(mq1,&buf,sizeof(buf.msg),0);
     // printf("was here1\n");
@@ -63,8 +63,8 @@ int main(int argc, char *argv[]){
         // extract the number from the argument
         int num = atoi(argv[i+4]);
         struct msgbuf3 buf3;
-        // process sends MMU ONLY with type 1e9
-        buf3.mtype = 1e9;
+        // process sends message to MMU ONLY with type 1e6
+        buf3.mtype = 1e6;
         buf3.info.pid = id;
         buf3.info.pageNumber = num;
         buf3.info.msg = 0;
@@ -72,7 +72,10 @@ int main(int argc, char *argv[]){
         msgsnd(mq3,&buf3,sizeof(buf3.info),0);
 
         struct msgbuf3 buf3_r;
+        printf("Process %d waiting for page %d\n", id, num);
         msgrcv(mq3,&buf3_r,sizeof(buf3_r.info),id+1,0);
+        // never coming to this, why????
+        printf("Process %d received page %d\n", id, num);
 
         if (buf3_r.info.msg == -1) {
             // pop.sem_num = vop.sem_num = 1;
@@ -88,7 +91,7 @@ int main(int argc, char *argv[]){
         }
     }
     struct msgbuf3 buf3;
-    buf3.mtype = 1e9;
+    buf3.mtype = 1e6;
     buf3.info.pid = id;
     buf3.info.pageNumber = -9;
     buf3.info.msg = -9;

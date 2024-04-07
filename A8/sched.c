@@ -45,7 +45,7 @@ int main(int argc, char *argv[]){
     struct msgbuf buf;
 
     while(numOfTerminatedProcesses < *shm_k_ptr){
-        msgrcv(mq1,&buf,sizeof(buf.msg),1e9,0);
+        msgrcv(mq1,&buf,sizeof(buf.msg),1e6,0);
         printf("Process %d taken from ready queue\n", buf.msg);
         // buf.msg should contain the id
         int semid = semget(ftok("Process.c", buf.msg), 1, IPC_CREAT|0666);
