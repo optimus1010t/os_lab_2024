@@ -1,9 +1,9 @@
-master: scheduler MMU Process 
-	gcc -o master master.c
+Master: sched MMU Process Master.c
+	gcc -o Master Master.c
 
 
-scheduler:
-	gcc -o scheduler scheduler.c
+sched:
+	gcc -o sched sched.c
 
 MMU:
 	gcc -o MMU MMU.c
@@ -12,5 +12,5 @@ Process:
 	gcc -o Process Process.c
 
 clean:
-	rm -f master scheduler MMU Process
+	rm -f Master sched MMU Process
 

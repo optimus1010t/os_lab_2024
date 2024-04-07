@@ -14,6 +14,9 @@
 
 #define ARGS 10
 
+#define wait(s) semop(s, &pop, 1) 
+#define signall(s) semop(s, &vop, 1)
+
 typedef struct pageTableEntry{ // page table entry
     int frameNumber;
     int valid;
@@ -25,7 +28,12 @@ typedef struct freeFrameList{
 } freeFrameList;
 
 int main(){
-    srand(time(0));
+    // srand(time(0));
+
+    struct sembuf pop, vop ;
+    pop.sem_num = vop.sem_num = 0;
+    pop.sem_flg = vop.sem_flg = 0;
+    pop.sem_op = -1; vop.sem_op = 1;
 
     // taking user input
     int k,m,f;
@@ -55,10 +63,10 @@ int main(){
     freeFrameListHead=(freeFrameList*)shmat(sm2id,NULL,0);
 
     // add all frames as free
-    freeFrameListHead->frameNumber = 0;
+    freeFrameListHead->frameNumber = -1;
     freeFrameListHead->next = NULL;
     freeFrameList *temp = freeFrameListHead;
-    for(int i=1;i<f;i++) {
+    for(int i=0;i<f;i++) {
         temp->next = (freeFrameList*)malloc(sizeof(freeFrameList));
         temp = temp->next;
         temp->frameNumber = i;
@@ -72,11 +80,12 @@ int main(){
         numOfPagesReqd[i] = rand()%m + 1;
     }
 
-
+    // stores k
     int shm_k_id = shmget(ftok("MMU.c",'A'),sizeof(int),IPC_CREAT|0666);
     int *shm_k_ptr = (int*)shmat(shm_k_id,NULL,0);
     *shm_k_ptr = k;
 
+    // stores m, f and numOfPagesReqd
     int shm_m_f_table_id = shmget(ftok("MMU.c",'B'),(k+2)*sizeof(int),IPC_CREAT|0666);
     int *shm_m_f_table_ptr = (int*)shmat(shm_m_f_table_id,NULL,0);
     shm_m_f_table_ptr[0] = m;
@@ -99,60 +108,74 @@ int main(){
     sprintf(mq2,"%d",keymq2);
     sprintf(mq3,"%d",keymq3);
 
+    int keysem1=ftok("Master.c",'F');
+    int sem1=semget(keysem1,1,IPC_CREAT|0666);
+    semctl(sem1,0,SETVAL,0);
 
-    // passing ids as cmd line args
+
+    // passing keyss as cmd line args
 
     // child process to execute scheduler
-    if(!fork()) {
-        execlp("./Scheduler","Scheduler",mq1,mq2,NULL);
+    if(fork()==0) {
+        execlp("./sched","./sched",mq1,mq2,NULL);
+        perror("error1\n");
     }
 
     // child process to execute MMU
-    if(!fork()) {
-        execlp("./MMU","MMU",mq2,mq3,sm1,sm2,NULL);
+    if(fork()==0) {
+        execlp("./MMU","./MMU",mq2,mq3,sm1,sm2,NULL);
+        perror("error2\n");
     }
 
     for(int i = 0; i < k; i++){
+        printf("creating process %d\n",i);
         usleep(250000);      
         //generate reference string
         int len = rand()%(8*numOfPagesReqd[i]+1)+2*numOfPagesReqd[i];
-        char vec[len+4][ARGS];
-        strcpy(vec[0],"Process");
+        printf("Reference string of length %d\n", len);
+        char *vec[len+5];
+        for(int j=0;j<len+5;j++) vec[j] = (char*)malloc(ARGS*sizeof(char));
+        strcpy(vec[0],"./Process");
         strcpy(vec[1],mq1);
         strcpy(vec[2],mq3);
-        // sprintf(vec[3],"%d",len);
+        sprintf(vec[3],"%d\0",i);
+        printf("vec[3]: %s\n",vec[3]);
         // generate random reference string
-        for(int j = 3; j < len; j++){
+        for(int j = 4; j < len+4; j++){
             int prob = rand()%100;
             if(prob < 20){
                 prob = rand()%100;
                 if(prob < 20) {
-                    int illegal = rand()+numOfPagesReqd[i];
-                    sprintf(vec[j],"%d",illegal);
+                    int illegal = rand()+m;
+                    sprintf(vec[j],"%d\0",illegal);
                 }
                 else {
-                    sprintf(vec[j],"%d",numOfPagesReqd[i]+rand()%(m-numOfPagesReqd[i]+1));  // one based indexing -> what logic ????
-                    // sprintf(vec[j+1],"%d",rand()%numOfPagesReqd[i]+1);   // shouldnt this be the one ????
+                    int pg=rand()%numOfPagesReqd[i];
+                    sprintf(vec[j],"%d\0",pg);
                 } 
             }
             else {
-                sprintf(vec[j],"%d",rand()%numOfPagesReqd[i]);
+                sprintf(vec[j],"%d\0",rand()%numOfPagesReqd[i]);
             }
+            printf("%s ",vec[j]);
         }
-        for (int k = 0; k < ARGS; k++) vec[len+3][k]='\0';
+        printf("\n");
+        vec[len+4]=NULL;
 
         // child process to execute process
-        if(!fork()) {
-            // execlp("./Process","Process",mq1,mq3,vec,NULL);
+        if(fork()==0) {
             execvp("./Process",vec);
+            perror("error3\n");
         }
     }
 
     // wait until scheduler notifies that all processes are done
+    printf("here\n");
+    wait(sem1);
 
 
     // terminate scheduler and MMU
-    kill(0,SIGTERM);  // probably works????
+    kill(0,SIGTERM);
 
     // deallocate shared memory and message queues
     shmdt(pageTables);
