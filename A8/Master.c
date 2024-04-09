@@ -40,7 +40,7 @@ void sighandler(int signum){
         msgctl(mq1id,IPC_RMID,NULL);
         msgctl(mq2id,IPC_RMID,NULL);
         msgctl(mq3id,IPC_RMID,NULL);
-        semctl(sem1,0,IPC_RMID);
+        semctl(sem1,0,IPC_RMID,0);
         shmdt(shm_k_ptr);
         shmdt(shm_m_f_table_ptr);
         shmctl(shm_k_id,IPC_RMID,NULL);

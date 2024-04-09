@@ -234,6 +234,12 @@ int main(int argc, char *argv[]){
             // check if the page is already in the memory
             if(pageNumber > maxPageindex[flag]) {
                 // illegal access
+                // free the frames of the process
+                for (int i = 0; i < m; i++) {
+                    if (pageTables[m*flag+i].valid == 1) {
+                        isFrameFree[pageTables[m*flag+i].frameNumber] = 1;
+                    }
+                }
                 struct msgbuf3 buf3;
                 buf3.mtype = 2;
                 buf3.info.pid = pid;
