@@ -25,11 +25,6 @@ typedef struct pageTableEntry{ // page table entry
     int lastUsedAt;
 } pageTableEntry;
 
-typedef struct freeFrameList{
-    int frameNumber;
-    struct freeFrameList *next;
-} freeFrameList;
-
 struct msgbuf {
     long mtype;
     int msg;
@@ -44,28 +39,23 @@ struct msgbuf3 {  // standard for sending messages to the MMU
     } info;
 };
 
-void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *freeFrameListHead, pageTableEntry *pageTables, int *table_assgn, int k, int m, int f){
+void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, int *isFrameFree, pageTableEntry *pageTables, int *table_assgn, int k, int m, int f){
     struct sembuf pop, vop ;
     pop.sem_num = vop.sem_num = 0;
     pop.sem_flg = vop.sem_flg = 0;
     pop.sem_op = -1; vop.sem_op = 1;
-    sleep(1);
     // find a free frame
-    if(freeFrameListHead==NULL){
-        printf("bye bbyr1\n");
-        sleep(10);
+    int frameNumber=-1;
+    for(int i=0;i<f;i++){
+        if(isFrameFree[i]==1){
+            frameNumber=i;
+            break;
+        }
     }
-    freeFrameList *temp = freeFrameListHead->next;
-    printf("temp: %p\n", temp);
-    printf("temp->frameNumber: %d\n", temp->frameNumber);
-    printf("am i here\n");
-    sleep(2);
-    if (temp!=NULL) {
-        printf("Free Frame: %d\n", temp->frameNumber);
-        sleep(1);
+    if (frameNumber!=-1) {
+        printf("Free Frame: %d\n", frameNumber);
         int flag=pid;
         // send a message to the process
-        int frameNumber = temp->frameNumber;
         for(int i=0;i<m;i++){
             // the case when miss occurs and set is not full, make new block time 0, and all valid others time incremented by 1
             if(pageTables[m*flag+i].valid == 0){
@@ -81,8 +71,7 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
             }
         }
         // remove the frame from the free list
-        freeFrameListHead->next = temp->next;
-        free(temp);
+        isFrameFree[frameNumber]=0;
 
         // send a type 1 message to the scheduler
         struct msgbuf buf;
@@ -94,7 +83,6 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
     // if no free frame is available
     else {
         printf("No Free Frame\n");
-        sleep(1);
         int flag=0;
         // check if the set is empty
         for(int i=0;i<m;i++){
@@ -106,7 +94,6 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
         // if set is empty, can't do anything, so sending message to scheduler to enqueue the process for later, is that correct????
         if(!flag){
             printf("Set is empty\n");
-            sleep(1);
             struct msgbuf buf;
             buf.mtype = 1;
             buf.msg = pid;
@@ -186,8 +173,8 @@ int main(int argc, char *argv[]){
     pageTableEntry *pageTables; // remember to detach and remove shared memory and free ????
     pageTables=(pageTableEntry*)shmat(sm1id,NULL,0);
 
-    freeFrameList *freeFrameListHead;
-    freeFrameListHead=(freeFrameList*)shmat(sm2id,NULL,0);
+    int *isFrameFree;
+    isFrameFree=(int*)shmat(sm2id,NULL,0);
 
     while (1) {
         globaltime++;
@@ -196,7 +183,6 @@ int main(int argc, char *argv[]){
         if(msgrcv(mq3,&buf3,sizeof(buf3.info),0,0)<0)
         {
             perror("MMU:msgrcv");
-            sleep(10);
             exit(1);
         }
         printf("mtype: %ld\n", buf3.mtype);
@@ -227,18 +213,9 @@ int main(int argc, char *argv[]){
         if (pageNumber == -9) {
             // add the frames in its page table to the free list
             int flag = pid;
-            freeFrameList *temp = freeFrameListHead;
-            if(temp==NULL){
-                printf("bye bbyr\n");
-                sleep(10);
-            }
-            while (temp->next != NULL) temp = temp->next;
             for (int i = 0; i < m; i++) {
                 if (pageTables[m*flag+i].valid == 1) {
-                    temp->next = (freeFrameList*)malloc(sizeof(freeFrameList));
-                    temp = temp->next;
-                    temp->frameNumber = pageTables[m*flag+i].frameNumber;
-                    temp->next = NULL;
+                    isFrameFree[pageTables[m*flag+i].frameNumber] = 1;
                 }
             }
             struct msgbuf buf;
@@ -321,7 +298,7 @@ int main(int argc, char *argv[]){
                 write(fd, temp, strlen(temp));
                 write(fd, ")\n", 2);
                 pageFaults[pid]++;
-                PageFaultHandler(pageNumber, pid, mq2, mq3, freeFrameListHead, pageTables, table_assgn, k, m, f);
+                PageFaultHandler(pageNumber, pid, mq2, mq3, isFrameFree, pageTables, table_assgn, k, m, f);
             }
         }
     }

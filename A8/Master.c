@@ -23,11 +23,6 @@ typedef struct pageTableEntry{ // page table entry
     int lastUsedAt;
 } pageTableEntry;
 
-typedef struct freeFrameList{
-    int frameNumber;
-    struct freeFrameList *next;
-} freeFrameList;
-
 int mq1id, mq2id, mq3id;
 int sem1;
 int shm_k_id, shm_m_f_table_id;
@@ -83,13 +78,9 @@ int main(){
 
     // free frame list
     int keysm2=ftok("Master.c",'E');
-    int sm2id=shmget(keysm2,sizeof(freeFrameList)*(f+1),IPC_CREAT|0666);
-    freeFrameList *freeFrameListHead;
-    freeFrameListHead=(freeFrameList*)shmat(sm2id,NULL,0);
-
-    // add all frames as free
-    freeFrameListHead->frameNumber = -1;
-    freeFrameListHead->next = NULL;
+    int sm2id=shmget(keysm2,sizeof(int)*(f),IPC_CREAT|0666);
+    int *isFrameFree;
+    isFrameFree=(int*)shmat(sm2id,NULL,0);
 
     // process to page number mapping
     int numOfPagesReqd[k];
@@ -109,16 +100,13 @@ int main(){
             pageTables[m*i+j].valid = 1;
             pageTables[m*i+j].lastUsedAt=lu;
             lu++;
+            isFrameFree[frameNumber]=0;
             frameNumber++;
         }
     }
 
-    freeFrameList *temp = freeFrameListHead;
     for(int i=frameNumber;i<f;i++) {
-        temp->next = (freeFrameList*)malloc(sizeof(freeFrameList));
-        temp = temp->next;
-        temp->frameNumber = i;
-        temp->next = NULL;
+        isFrameFree[i]=1;
     }
 
     // stores k
@@ -230,7 +218,7 @@ int main(){
     // deallocate shared memory and message queues
     shmdt(pageTables);
     shmctl(sm1id,IPC_RMID,NULL);
-    shmdt(freeFrameListHead);
+    shmdt(isFrameFree);
     shmctl(sm2id,IPC_RMID,NULL);
     msgctl(mq1id,IPC_RMID,NULL);
     msgctl(mq2id,IPC_RMID,NULL);

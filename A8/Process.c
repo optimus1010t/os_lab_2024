@@ -73,6 +73,9 @@ int main(int argc, char *argv[]){
         buf3.info.msg = 0;
         printf("Process %d sending page %d\n", id, num);
         fflush(stdout);
+        if(num==-1){
+            sleep(10);
+        }
         msgsnd(mq3,&buf3,sizeof(buf3.info),0);
 
         struct msgbuf3 buf3_r;
