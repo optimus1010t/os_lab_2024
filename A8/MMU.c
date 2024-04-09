@@ -49,10 +49,12 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
     pop.sem_num = vop.sem_num = 0;
     pop.sem_flg = vop.sem_flg = 0;
     pop.sem_op = -1; vop.sem_op = 1;
-
+    sleep(5);
     // find a free frame
     freeFrameList *temp = freeFrameListHead->next;
     if (temp!=NULL) {
+        printf("Free Frame: %d\n", temp->frameNumber);
+        sleep(5);
         int flag=pid;
         // send a message to the process
         int frameNumber = temp->frameNumber;
@@ -78,10 +80,13 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
         struct msgbuf buf;
         buf.mtype = 1;
         buf.msg = pid;
+        printf("MMU: mtype=%d, msg=%d\n", buf.mtype, buf.msg);
         msgsnd(mq2,&buf,sizeof(buf.msg),0);
     }
     // if no free frame is available
     else {
+        printf("No Free Frame\n");
+        sleep(5);
         int flag=0;
         // check if the set is empty
         for(int i=0;i<m;i++){
@@ -95,6 +100,7 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
             struct msgbuf buf;
             buf.mtype = 1;
             buf.msg = pid;
+            printf("MMU: mtype=%d, msg=%d\n", buf.mtype, buf.msg);
             msgsnd(mq2,&buf,sizeof(buf.msg),0);
         }
         else{
@@ -126,6 +132,7 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
             struct msgbuf buf;
             buf.mtype = 1;
             buf.msg = pid;
+            printf("MMU: mtype=%d, msg=%d\n", buf.mtype, buf.msg);
             msgsnd(mq2,&buf,sizeof(buf.msg),0);
         }
     }
@@ -158,30 +165,39 @@ int main(int argc, char *argv[]){
     int table_assgn[k];
     for(int i=0;i<k;i++) table_assgn[i] = -1;
 
-    int keymq2, keymq3, keysm1, keysm2;  
-    keymq2=atoi(argv[1]);
-    keymq3=atoi(argv[2]);
-    keysm1=atoi(argv[3]);
-    keysm2=atoi(argv[4]);
     int mq2, mq3, sm1id, sm2id;
-    mq2 = msgget(keymq2, IPC_CREAT|0666);
-    mq3 = msgget(keymq3, IPC_CREAT|0666);
-    sm1id = shmget(keysm1,k*m*sizeof(pageTableEntry),IPC_CREAT|0666);
+    mq2=atoi(argv[1]);
+    mq3=atoi(argv[2]);
+    sm1id=atoi(argv[3]);
+    sm2id=atoi(argv[4]);
+    printf("MMU: mq2=%d, mq3=%d\n", mq2, mq3);
+
     pageTableEntry *pageTables; // remember to detach and remove shared memory and free ????
     pageTables=(pageTableEntry*)shmat(sm1id,NULL,0);
 
-    sm2id = shmget(keysm2,sizeof(freeFrameList),IPC_CREAT|0666);
     freeFrameList *freeFrameListHead;
     freeFrameListHead=(freeFrameList*)shmat(sm2id,NULL,0);
 
     while (1) {
         globaltime++;
+        printf("Global Time: %ld\n", globaltime);
         struct msgbuf3 buf3;
-        msgrcv(mq3,&buf3,sizeof(buf3.info),1e6,0);
+        if(msgrcv(mq3,&buf3,sizeof(buf3.info),0,0)<0)
+        {
+            perror("MMU:msgrcv");
+            sleep(10);
+            exit(1);
+        }
+        printf("mtype: %ld\n", buf3.mtype);
+        // if(buf3.mtype<=k){
+        //     msgsnd(mq3,&buf3,sizeof(buf3.info),0);
+        //     continue;
+        // }
         int pageNumber = buf3.info.pageNumber;
         int pid = buf3.info.pid;
         int msg = buf3.info.msg;
         printf("Global Ordering: (%ld, %d, %d)\n", globaltime, pid, pageNumber);
+        fflush(stdout);
         // printf("process %d: ", pid);
         if (pageNumber == -9) {
             // add the frames in its page table to the free list
@@ -199,6 +215,7 @@ int main(int argc, char *argv[]){
             struct msgbuf buf;
             buf.mtype = 2;
             buf.msg = pid;
+            printf("MMU: mtype=%d, msg=%d\n", buf.mtype, buf.msg);
             msgsnd(mq2,&buf,sizeof(buf.msg),0);   
             printf("terminated\n");        
         }
@@ -208,7 +225,7 @@ int main(int argc, char *argv[]){
             if(pageNumber > maxPageindex[flag]) {
                 // illegal access
                 struct msgbuf3 buf3;
-                buf3.mtype = pid+1;
+                buf3.mtype = 2;
                 buf3.info.pid = pid;
                 buf3.info.pageNumber = pageNumber;
                 buf3.info.msg = -2;
@@ -219,9 +236,11 @@ int main(int argc, char *argv[]){
                 struct msgbuf buf;
                 buf.mtype = 2;
                 buf.msg = pid;
+                printf("MMU: mtype=%d, msg=%d\n", buf.mtype, buf.msg);
                 msgsnd(mq2,&buf,sizeof(buf.msg),0);
                 // printf("seg fault\n");
                 printf("Invalid Page Reference: (%d, %d)\n", pid, pageNumber);
+                fflush(stdout);
                 invalidPageReferences[pid]++;
                 continue;
             }
@@ -237,7 +256,7 @@ int main(int argc, char *argv[]){
 
                 // send a message to the process
                 struct msgbuf3 buf;
-                buf.mtype=pid+1;
+                buf.mtype=2;
                 buf.info.msg=pageTables[m*flag+pageNumber].frameNumber;
                 buf.info.pageNumber=pageTables[m*flag+pageNumber].frameNumber;
                 buf.info.pid=pid;
@@ -248,13 +267,14 @@ int main(int argc, char *argv[]){
             else {
                 // page fault
                 struct msgbuf3 buf;
-                buf.mtype = pid+1;
+                buf.mtype = 2;
                 buf.info.pid = pid;
                 buf.info.pageNumber = -1;
                 buf.info.msg = -1;
                 printf("Sending (%d, %d, %d)\n", pid, pageNumber, -1);
                 msgsnd(mq3,&buf,sizeof(buf.info),0);
                 printf("\tPage Fault Sequence: (%d,%d)\n", pid, pageNumber);
+                fflush(stdout);
                 pageFaults[pid]++;
                 PageFaultHandler(pageNumber, pid, mq2, mq3, freeFrameListHead, pageTables, table_assgn, k, m, f);
             }

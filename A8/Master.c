@@ -12,7 +12,7 @@
 #include<fcntl.h>
 #include<time.h>
 
-#define ARGS 10
+#define ARGS 20
 
 #define wait(s) semop(s, &pop, 1) 
 #define signall(s) semop(s, &vop, 1)
@@ -28,8 +28,21 @@ typedef struct freeFrameList{
     struct freeFrameList *next;
 } freeFrameList;
 
+int mq1id, mq2id, mq3id;
+
+void sighandler(int signum){
+    if(signum == SIGINT){
+        printf("Master process interrupted\n");
+        msgctl(mq1id,IPC_RMID,NULL);
+        msgctl(mq2id,IPC_RMID,NULL);
+        msgctl(mq3id,IPC_RMID,NULL);
+        exit(0);
+    }
+}
+
 int main(){
     // srand(time(0));
+    signal(SIGINT,sighandler);
 
     struct sembuf pop, vop ;
     pop.sem_num = vop.sem_num = 0;
@@ -46,7 +59,7 @@ int main(){
     scanf("%d",&f);
 
     // page tables (implemented as 1 dimensional array of size k*m)
-    printf("Creating page tables\n");
+    printf("Master: Creating page tables\n");
     int keysm1=ftok("Master.c",'D');
     int sm1id=shmget(keysm1,k*m*sizeof(pageTableEntry),IPC_CREAT|0666);
     pageTableEntry *pageTables; // remember to detach and remove shared memory and free ????
@@ -58,7 +71,7 @@ int main(){
             pageTables[m*i+j].lastUsedAt = -1;
         }
     }
-    printf("Page tables created\n");
+    printf("Master: Page tables created\n");
 
     // free frame list
     int keysm2=ftok("Master.c",'E');
@@ -114,19 +127,20 @@ int main(){
 
     // mq1, mq2 and mq3
     int keymq1=ftok("Master.c",'A');
-    int mq1id=msgget(keymq1,IPC_CREAT|0666);
+    mq1id=msgget(keymq1,IPC_CREAT|0666);
     int keymq2=ftok("Master.c",'B');
-    int mq2id=msgget(keymq2,IPC_CREAT|0666);
+    mq2id=msgget(keymq2,IPC_CREAT|0666);
     int keymq3=ftok("Master.c",'C');
-    int mq3id=msgget(keymq3,IPC_CREAT|0666);
+    mq3id=msgget(keymq3,IPC_CREAT|0666);
+    printf("Master: mq1id: %d, mq2id: %d, mq3id: %d\n",mq1id,mq2id,mq3id);
 
-    char sm1[10], sm2[10], mq1[10], mq2[10], mq3[10];
-    memset(sm1,0,10); memset(sm2,0,10); memset(mq1,0,10); memset(mq2,0,10); memset(mq3,0,10);
-    sprintf(sm1,"%d",keysm1);
-    sprintf(sm2,"%d",keysm2);
-    sprintf(mq1,"%d",keymq1);
-    sprintf(mq2,"%d",keymq2);
-    sprintf(mq3,"%d",keymq3);
+    char sm1[ARGS], sm2[ARGS], mq1[ARGS], mq2[ARGS], mq3[ARGS];
+    memset(sm1,0,ARGS); memset(sm2,0,ARGS); memset(mq1,0,ARGS); memset(mq2,0,ARGS); memset(mq3,0,ARGS);
+    sprintf(sm1,"%d",sm1id);
+    sprintf(sm2,"%d",sm2id);
+    sprintf(mq1,"%d",mq1id);
+    sprintf(mq2,"%d",mq2id);
+    sprintf(mq3,"%d",mq3id);
 
     int keysem1=ftok("Master.c",'F');
     int sem1=semget(keysem1,1,IPC_CREAT|0666);
@@ -142,23 +156,23 @@ int main(){
 
     // child process to execute MMU
     if(fork()==0) {
-        execlp("xterm", "xterm", "-T", "MMU", "-e", "./MMU","./MMU",mq2,mq3,sm1,sm2,NULL);
+        execlp("xterm", "xterm", "-T", "MMU", "-e", "./MMU",mq2,mq3,sm1,sm2,NULL);
         perror("error2\n");
     }
 
     for(int i = 0; i < k; i++){
-        printf("creating process %d\n",i);
-        sleep(2);      
+        printf("Master: creating process %d\n",i);
+        usleep(250000);      
         //generate reference string
         int len = rand()%(8*numOfPagesReqd[i]+1)+2*numOfPagesReqd[i];
-        printf("Reference string of length %d\n", len);
+        printf("Master: Reference string of length %d\n", len);
         char *vec[len+5];
         for(int j=0;j<len+5;j++) vec[j] = (char*)malloc(ARGS*sizeof(char));
         strcpy(vec[0],"./Process");
         strcpy(vec[1],mq1);
         strcpy(vec[2],mq3);
         sprintf(vec[3],"%d\0",i);
-        printf("vec[3]: %s\n",vec[3]);
+        printf("Master: vec[3]: %s\n",vec[3]);
         // generate random reference string
         for(int j = 4; j < len+4; j++){
             int prob = rand()%100;
@@ -198,7 +212,7 @@ int main(){
     }
 
     // wait until scheduler notifies that all processes are done
-    printf("here\n");
+    printf("Master: here\n");
     wait(sem1);
 
 

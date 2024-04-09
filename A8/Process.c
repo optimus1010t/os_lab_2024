@@ -39,16 +39,15 @@ int main(int argc, char *argv[]){
     pop.sem_op = -1; vop.sem_op = 1;
     
     printf("in process %d\n", id);
-    int semid = semget(ftok("Process.c", id), 1, IPC_CREAT|0666);
-    for (int i = 0; i < 1; i++) semctl(semid, i, SETVAL, 0);
-    int keymq1, keymq3;
-    keymq1=atoi(argv[1]);
-    keymq3=atoi(argv[2]);
+    int semid = semget(ftok("Process.c", id+1), 1, IPC_CREAT|0666);
+    semctl(semid, 0, SETVAL, 0);
     int mq1, mq3;
-    mq1 = msgget(keymq1, IPC_CREAT|0666);
-    mq3 = msgget(keymq3, IPC_CREAT|0666);
+    mq1=atoi(argv[1]);
+    mq3=atoi(argv[2]);
+    printf("Process: mq1=%d, mq3=%d\n", mq1, mq3);
+
     struct msgbuf buf;
-    buf.mtype = 1e6;
+    buf.mtype = 1;
     buf.msg = id;
     msgsnd(mq1,&buf,sizeof(buf.msg),0);
     // printf("was here1\n");
@@ -57,25 +56,32 @@ int main(int argc, char *argv[]){
     // fflush(stdout);
 
     wait(semid);
+    printf("Process %d started\n", id);
+    fflush(stdout);
     int len = argc - 4;
 
     for (int i = 0; i < len; i++){
         // extract the number from the argument
         int num = atoi(argv[i+4]);
+        printf("Process %d requesting page %d\n", id, num);
+        fflush(stdout);
         struct msgbuf3 buf3;
-        // process sends message to MMU ONLY with type 1e6
-        buf3.mtype = 1e6;
+        // process sends message to MMU ONLY with type 1
+        buf3.mtype = 1;
         buf3.info.pid = id;
         buf3.info.pageNumber = num;
         buf3.info.msg = 0;
         printf("Process %d sending page %d\n", id, num);
+        fflush(stdout);
         msgsnd(mq3,&buf3,sizeof(buf3.info),0);
 
         struct msgbuf3 buf3_r;
         printf("Process %d waiting for page %d\n", id, num);
-        msgrcv(mq3,&buf3_r,sizeof(buf3_r.info),id+1,0);
+        fflush(stdout);
+        msgrcv(mq3,&buf3_r,sizeof(buf3_r.info),2,0);
         // never coming to this, why????
         printf("Process %d received page %d\n", id, num);
+        fflush(stdout);
 
         if (buf3_r.info.msg == -1) {
             // pop.sem_num = vop.sem_num = 1;
@@ -91,7 +97,7 @@ int main(int argc, char *argv[]){
         }
     }
     struct msgbuf3 buf3;
-    buf3.mtype = 1e6;
+    buf3.mtype = 1;
     buf3.info.pid = id;
     buf3.info.pageNumber = -9;
     buf3.info.msg = -9;
