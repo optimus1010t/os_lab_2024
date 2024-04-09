@@ -23,14 +23,20 @@ typedef struct pageTableEntry{ // page table entry
     int lastUsedAt;
 } pageTableEntry;
 
-int mq1id, mq2id, mq3id;
+int mq1id, mq2id, mq3id, sm1id, sm2id;
 int sem1;
 int shm_k_id, shm_m_f_table_id;
 int *shm_k_ptr, *shm_m_f_table_ptr;
+pageTableEntry *pageTables;
+int *isFrameFree;
 
 void sighandler(int signum){
     if(signum == SIGINT){
         printf("Master process interrupted\n");
+        shmdt(pageTables);
+        shmctl(sm1id,IPC_RMID,NULL);
+        shmdt(isFrameFree);
+        shmctl(sm2id,IPC_RMID,NULL);
         msgctl(mq1id,IPC_RMID,NULL);
         msgctl(mq2id,IPC_RMID,NULL);
         msgctl(mq3id,IPC_RMID,NULL);
@@ -64,8 +70,7 @@ int main(){
     // page tables (implemented as 1 dimensional array of size k*m)
     printf("Master: Creating page tables\n");
     int keysm1=ftok("Master.c",'D');
-    int sm1id=shmget(keysm1,k*m*sizeof(pageTableEntry),IPC_CREAT|0666);
-    pageTableEntry *pageTables; // remember to detach and remove shared memory and free ????
+    sm1id=shmget(keysm1,k*m*sizeof(pageTableEntry),IPC_CREAT|0666);
     pageTables=(pageTableEntry*)shmat(sm1id,NULL,0);
     for(int i=0;i<k;i++) {
         for(int j=0;j<m;j++) {
@@ -78,8 +83,7 @@ int main(){
 
     // free frame list
     int keysm2=ftok("Master.c",'E');
-    int sm2id=shmget(keysm2,sizeof(int)*(f),IPC_CREAT|0666);
-    int *isFrameFree;
+    sm2id=shmget(keysm2,sizeof(int)*(f),IPC_CREAT|0666);
     isFrameFree=(int*)shmat(sm2id,NULL,0);
 
     // process to page number mapping
@@ -228,6 +232,10 @@ int main(){
     msgctl(mq2id,IPC_RMID,NULL);
     msgctl(mq3id,IPC_RMID,NULL);
     semctl(sem1,0,IPC_RMID);
+    shmdt(shm_k_ptr);
+    shmdt(shm_m_f_table_ptr);
+    shmctl(shm_k_id,IPC_RMID,NULL);
+    shmctl(shm_m_f_table_id,IPC_RMID,NULL);
 
     return 0;
 }
