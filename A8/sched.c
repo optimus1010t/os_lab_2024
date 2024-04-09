@@ -29,7 +29,6 @@ int main(int argc, char *argv[]){
     int mq1, mq2;
     mq1=atoi(argv[1]);
     mq2=atoi(argv[2]);
-    printf("Scheduler: mq1=%d, mq2=%d\n", mq1, mq2);
 
     int keysem1 = ftok("Master.c", 'F');            // might pass this as cmd line arg
     int sem1 = semget(keysem1, 1, IPC_CREAT|0666);
@@ -47,7 +46,6 @@ int main(int argc, char *argv[]){
             perror("msgrcvsched1");
             exit(1);
         }
-        printf("Scheduler: Process %d taken from ready queue\n", buf.msg);
         // buf.msg should contain the id
         int semid = semget(ftok("Process.c", buf.msg+1), 1, IPC_CREAT|0666);
         if(semid == -1) {
@@ -59,12 +57,10 @@ int main(int argc, char *argv[]){
         signall(semid);
         // scheduler blocks itself
         struct msgbuf buf2; 
-        printf("size expected: %d\n",sizeof(buf2.msg));
         if(msgrcv(mq2,&buf2,sizeof(buf2.msg),0,0)<0){
             perror("msgrcvsched2");
             exit(1);
         }
-        printf("buf2.mtype: %ld, msg=%d\n", buf2.mtype, buf2.msg);
         // notification from MMU received
         if (buf2.mtype == 1) {
             // page fault handled, enqueing process back to ready queue
@@ -72,15 +68,12 @@ int main(int argc, char *argv[]){
             buff.mtype = 1;
             buff.msg = buf2.msg;
             msgsnd(mq1,&buff,sizeof(buff.msg),0);
-            printf("Scheduler: Process %d enqueued back to ready queue\n", buff.msg);
         }
         else if (buf2.mtype == 2) {
             numOfTerminatedProcesses++;
         }
     }
-    printf("scheduler almost done\n");
     signall(sem1);
-    // can it end itself or we needa wait for master to kill????
     shmdt(shm_k_ptr);
     return 0;
 }

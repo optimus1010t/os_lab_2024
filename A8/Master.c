@@ -50,7 +50,7 @@ void sighandler(int signum){
 }
 
 int main(){
-    // srand(time(0));
+    srand(time(0));
     signal(SIGINT,sighandler);
 
     struct sembuf pop, vop ;
@@ -68,7 +68,6 @@ int main(){
     scanf("%d",&f);
 
     // page tables (implemented as 1 dimensional array of size k*m)
-    printf("Master: Creating page tables\n");
     int keysm1=ftok("Master.c",'D');
     sm1id=shmget(keysm1,k*m*sizeof(pageTableEntry),IPC_CREAT|0666);
     pageTables=(pageTableEntry*)shmat(sm1id,NULL,0);
@@ -79,7 +78,6 @@ int main(){
             pageTables[m*i+j].lastUsedAt = -1;
         }
     }
-    printf("Master: Page tables created\n");
 
     // free frame list
     int keysm2=ftok("Master.c",'E');
@@ -135,7 +133,6 @@ int main(){
     mq2id=msgget(keymq2,IPC_CREAT|0666);
     int keymq3=ftok("Master.c",'C');
     mq3id=msgget(keymq3,IPC_CREAT|0666);
-    printf("Master: mq1id: %d, mq2id: %d, mq3id: %d\n",mq1id,mq2id,mq3id);
 
     char sm1[ARGS], sm2[ARGS], mq1[ARGS], mq2[ARGS], mq3[ARGS];
     memset(sm1,0,ARGS); memset(sm2,0,ARGS); memset(mq1,0,ARGS); memset(mq2,0,ARGS); memset(mq3,0,ARGS);
@@ -164,18 +161,15 @@ int main(){
     }
 
     for(int i = 0; i < k; i++){
-        printf("Master: creating process %d\n",i);
         usleep(250000);      
         //generate reference string
         int len = rand()%(8*numOfPagesReqd[i]+1)+2*numOfPagesReqd[i];
-        printf("Master: Reference string of length %d\n", len);
         char *vec[len+5];
         for(int j=0;j<len+5;j++) vec[j] = (char*)malloc(ARGS*sizeof(char));
         strcpy(vec[0],"./Process");
         strcpy(vec[1],mq1);
         strcpy(vec[2],mq3);
         sprintf(vec[3],"%d\0",i);
-        printf("Master: vec[3]: %s\n",vec[3]);
         // generate random reference string
         for(int j = 4; j < len+4; j++){
             int prob = rand()%100;
@@ -202,9 +196,7 @@ int main(){
                 // legal
                 sprintf(vec[j],"%d\0",rand()%numOfPagesReqd[i]);
             }
-            printf("%s ",vec[j]);
         }
-        printf("\n");
         vec[len+4]=NULL;
 
         // child process to execute process
@@ -215,7 +207,6 @@ int main(){
     }
 
     // wait until scheduler notifies that all processes are done
-    printf("Master: here\n");
     wait(sem1);
 
 

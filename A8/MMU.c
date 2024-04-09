@@ -53,7 +53,7 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, int *isFrameFre
         }
     }
     if (frameNumber!=-1) {
-        printf("Free Frame: %d\n", frameNumber);
+        // if free frame is available
         int flag=pid;
         // send a message to the process
         for(int i=0;i<m;i++){
@@ -77,12 +77,10 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, int *isFrameFre
         struct msgbuf buf;
         buf.mtype = 1;
         buf.msg = pid;
-        printf("MMU: mtype=%d, msg=%d\n", buf.mtype, buf.msg);
         msgsnd(mq2,&buf,sizeof(buf.msg),0);
     }
     // if no free frame is available
     else {
-        printf("No Free Frame\n");
         int flag=0;
         // check if the set is empty
         for(int i=0;i<m;i++){
@@ -93,12 +91,10 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, int *isFrameFre
         }
         // if set is empty, can't do anything, so sending message to scheduler to enqueue the process for later, is that correct????
         if(!flag){
-            printf("Set is empty\n");
             // sleep(10);
             struct msgbuf buf;
             buf.mtype = 1;
             buf.msg = pid;
-            printf("MMU: mtype=%d, msg=%d\n", buf.mtype, buf.msg);
             msgsnd(mq2,&buf,sizeof(buf.msg),0);
         }
         else{
@@ -130,15 +126,13 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, int *isFrameFre
             struct msgbuf buf;
             buf.mtype = 1;
             buf.msg = pid;
-            // sleep(1);
-            printf("MMU: mtype=%d, msg=%d\n", buf.mtype, buf.msg);
             msgsnd(mq2,&buf,sizeof(buf.msg),0);
         }
     }
 }
 
 int main(int argc, char *argv[]){
-    int fd=open("output.txt",O_WRONLY|O_CREAT|O_TRUNC,0666);
+    int fd=open("result.txt",O_WRONLY|O_CREAT|O_TRUNC,0666);
     struct sembuf pop, vop ;
     pop.sem_num = vop.sem_num = 0;
     pop.sem_flg = vop.sem_flg = 0;
@@ -168,7 +162,6 @@ int main(int argc, char *argv[]){
     mq3=atoi(argv[2]);
     sm1id=atoi(argv[3]);
     sm2id=atoi(argv[4]);
-    printf("MMU: mq2=%d, mq3=%d\n", mq2, mq3);
 
     pageTableEntry *pageTables; // remember to detach and remove shared memory and free ????
     pageTables=(pageTableEntry*)shmat(sm1id,NULL,0);
@@ -178,22 +171,12 @@ int main(int argc, char *argv[]){
 
     while (1) {
         globaltime++;
-        printf("Free list: ");
-        for(int i=0;i<f;i++){
-            printf("%d ",isFrameFree[i]);
-        }
-        printf("Global Time: %ld\n", globaltime);
         struct msgbuf3 buf3;
         if(msgrcv(mq3,&buf3,sizeof(buf3.info),1,0)<0)
         {
             perror("MMU:msgrcv");
             exit(1);
         }
-        printf("mtype: %ld\n", buf3.mtype);
-        // if(buf3.mtype<=k){
-        //     msgsnd(mq3,&buf3,sizeof(buf3.info),0);
-        //     continue;
-        // }
         int pageNumber = buf3.info.pageNumber;
         int pid = buf3.info.pid;
         int msg = buf3.info.msg;
@@ -213,7 +196,6 @@ int main(int argc, char *argv[]){
         write(fd, temp, strlen(temp));
         write(fd, ")\n", 2);
         
-        // printf("process %d: ", pid);
         if (pageNumber == -9) {
             // add the frames in its page table to the free list
             int flag = pid;
@@ -222,12 +204,22 @@ int main(int argc, char *argv[]){
                     isFrameFree[pageTables[m*flag+i].frameNumber] = 1;
                 }
             }
+            printf("Process %d had %d page faults and %d invalid page references\n", pid, pageFaults[pid], invalidPageReferences[pid]);
+            fflush(stdout);
+            write(fd, "Process ", 8);
+            sprintf(temp, "%d", pid);
+            write(fd, temp, strlen(temp));
+            write(fd, " had ", 5);
+            sprintf(temp, "%d", pageFaults[pid]);
+            write(fd, temp, strlen(temp));
+            write(fd, " page faults and ", 17);
+            sprintf(temp, "%d", invalidPageReferences[pid]);
+            write(fd, temp, strlen(temp));
+            write(fd, " invalid page references\n", 25);
             struct msgbuf buf;
             buf.mtype = 2;
             buf.msg = pid;
-            printf("MMU: mtype=%d, msg=%d\n", buf.mtype, buf.msg);
-            msgsnd(mq2,&buf,sizeof(buf.msg),0);   
-            printf("terminated\n");        
+            msgsnd(mq2,&buf,sizeof(buf.msg),0);
         }
         else {
             int flag = pid;
@@ -245,16 +237,15 @@ int main(int argc, char *argv[]){
                 buf3.info.pid = pid;
                 buf3.info.pageNumber = pageNumber;
                 buf3.info.msg = -2;
-                printf("Sending (%d, %d, %d)\n", pid, pageNumber, -2);
                 msgsnd(mq3,&buf3,sizeof(buf3.info),0);
                 struct msgbuf buf;
                 buf.mtype = 2;
                 buf.msg = pid;
-                printf("MMU: mtype=%d, msg=%d\n", buf.mtype, buf.msg);
-                // printf("seg fault\n");
-                printf("Invalid Page Reference: (%d, %d)\n", pid, pageNumber);
+                printf("\t\tInvalid Page Reference: (%d, %d)\n", pid, pageNumber);
+                invalidPageReferences[pid]++;
+                printf("Process %d had %d page faults and %d invalid page references\n", pid, pageFaults[pid], invalidPageReferences[pid]);
                 fflush(stdout);
-                write(fd, "Invalid Page Reference: (", 25);
+                write(fd, "\t\tInvalid Page Reference: (", 27);
                 char temp[100];
                 sprintf(temp, "%d", pid);
                 write(fd, temp, strlen(temp));
@@ -262,7 +253,16 @@ int main(int argc, char *argv[]){
                 sprintf(temp, "%d", pageNumber);
                 write(fd, temp, strlen(temp));
                 write(fd, ")\n", 2);
-                invalidPageReferences[pid]++;
+                write(fd, "Process ", 8);
+                sprintf(temp, "%d", pid);
+                write(fd, temp, strlen(temp));
+                write(fd, " had ", 5);
+                sprintf(temp, "%d", pageFaults[pid]);
+                write(fd, temp, strlen(temp));
+                write(fd, " page faults and ", 17);
+                sprintf(temp, "%d", invalidPageReferences[pid]);
+                write(fd, temp, strlen(temp));
+                write(fd, " invalid page references\n", 25);
                 msgsnd(mq2,&buf,sizeof(buf.msg),0);
                 continue;
             }
@@ -282,8 +282,6 @@ int main(int argc, char *argv[]){
                 buf.info.msg=pageTables[m*flag+pageNumber].frameNumber;
                 buf.info.pageNumber=pageTables[m*flag+pageNumber].frameNumber;
                 buf.info.pid=pid;
-                printf("Sending (%d, %d, %d)\n", pid, pageNumber, pageTables[m*flag+pageNumber].frameNumber);
-                printf("assigned framenumber %d to page %d\n", buf.info.msg,pageNumber);
                 msgsnd(mq3,&buf,sizeof(buf.info),0);
             }
             else {
@@ -293,7 +291,6 @@ int main(int argc, char *argv[]){
                 buf.info.pid = pid;
                 buf.info.pageNumber = -1;
                 buf.info.msg = -1;
-                printf("Sending (%d, %d, %d)\n", pid, pageNumber, -1);
                 printf("\tPage Fault Sequence: (%d,%d)\n", pid, pageNumber);
                 fflush(stdout);
                 write(fd, "\tPage Fault Sequence: (", 23);
