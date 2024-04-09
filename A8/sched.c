@@ -46,7 +46,7 @@ int main(int argc, char *argv[]){
             perror("msgrcvsched1");
             exit(1);
         }
-        // buf.msg should contain the id
+        // buf.msg should contain the idhi
         int semid = semget(ftok("Process.c", buf.msg+1), 1, IPC_CREAT|0666);
         if(semid == -1) {
             perror("semget");

@@ -54,7 +54,7 @@ int main(int argc, char *argv[]){
     int len = argc - 4;
 
     for (int i = 0; i < len; i++){
-        // extract the number from the argument
+        // extract the number from the argumenthi
         int num = atoi(argv[i+4]);
         fflush(stdout);
         struct msgbuf3 buf3;

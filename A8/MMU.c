@@ -181,7 +181,7 @@ int main(int argc, char *argv[]){
         int pid = buf3.info.pid;
         int msg = buf3.info.msg;
 
-        // output
+        // outputhi
         printf("Global Ordering: (%ld, %d, %d)\n", globaltime, pid, pageNumber);
         fflush(stdout);
         write(fd, "Global Ordering: (", 18);

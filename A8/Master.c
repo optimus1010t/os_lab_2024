@@ -17,7 +17,7 @@
 #define wait(s) semop(s, &pop, 1) 
 #define signall(s) semop(s, &vop, 1)
 
-typedef struct pageTableEntry{ // page table entry
+typedef struct pageTableEntry{ // page table entryhi
     int frameNumber;
     int valid;
     int lastUsedAt;
