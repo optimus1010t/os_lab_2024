@@ -49,12 +49,20 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
     pop.sem_num = vop.sem_num = 0;
     pop.sem_flg = vop.sem_flg = 0;
     pop.sem_op = -1; vop.sem_op = 1;
-    sleep(5);
+    sleep(1);
     // find a free frame
+    if(freeFrameListHead==NULL){
+        printf("bye bbyr1\n");
+        sleep(10);
+    }
     freeFrameList *temp = freeFrameListHead->next;
+    printf("temp: %p\n", temp);
+    printf("temp->frameNumber: %d\n", temp->frameNumber);
+    printf("am i here\n");
+    sleep(2);
     if (temp!=NULL) {
         printf("Free Frame: %d\n", temp->frameNumber);
-        sleep(5);
+        sleep(1);
         int flag=pid;
         // send a message to the process
         int frameNumber = temp->frameNumber;
@@ -86,7 +94,7 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
     // if no free frame is available
     else {
         printf("No Free Frame\n");
-        sleep(5);
+        sleep(1);
         int flag=0;
         // check if the set is empty
         for(int i=0;i<m;i++){
@@ -97,6 +105,8 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
         }
         // if set is empty, can't do anything, so sending message to scheduler to enqueue the process for later, is that correct????
         if(!flag){
+            printf("Set is empty\n");
+            sleep(1);
             struct msgbuf buf;
             buf.mtype = 1;
             buf.msg = pid;
@@ -139,6 +149,7 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, freeFrameList *
 }
 
 int main(int argc, char *argv[]){
+    int fd=open("output.txt",O_WRONLY|O_CREAT|O_TRUNC,0666);
     struct sembuf pop, vop ;
     pop.sem_num = vop.sem_num = 0;
     pop.sem_flg = vop.sem_flg = 0;
@@ -196,13 +207,31 @@ int main(int argc, char *argv[]){
         int pageNumber = buf3.info.pageNumber;
         int pid = buf3.info.pid;
         int msg = buf3.info.msg;
+
+        // output
         printf("Global Ordering: (%ld, %d, %d)\n", globaltime, pid, pageNumber);
         fflush(stdout);
+        write(fd, "Global Ordering: (", 18);
+        char temp[100];
+        sprintf(temp, "%ld", globaltime);
+        write(fd, temp, strlen(temp));
+        write(fd, ", ", 2);
+        sprintf(temp, "%d", pid);
+        write(fd, temp, strlen(temp));
+        write(fd, ", ", 2);
+        sprintf(temp, "%d", pageNumber);
+        write(fd, temp, strlen(temp));
+        write(fd, ")\n", 2);
+        
         // printf("process %d: ", pid);
         if (pageNumber == -9) {
             // add the frames in its page table to the free list
             int flag = pid;
             freeFrameList *temp = freeFrameListHead;
+            if(temp==NULL){
+                printf("bye bbyr\n");
+                sleep(10);
+            }
             while (temp->next != NULL) temp = temp->next;
             for (int i = 0; i < m; i++) {
                 if (pageTables[m*flag+i].valid == 1) {
@@ -241,6 +270,14 @@ int main(int argc, char *argv[]){
                 // printf("seg fault\n");
                 printf("Invalid Page Reference: (%d, %d)\n", pid, pageNumber);
                 fflush(stdout);
+                write(fd, "Invalid Page Reference: (", 25);
+                char temp[100];
+                sprintf(temp, "%d", pid);
+                write(fd, temp, strlen(temp));
+                write(fd, ",", 1);
+                sprintf(temp, "%d", pageNumber);
+                write(fd, temp, strlen(temp));
+                write(fd, ")\n", 2);
                 invalidPageReferences[pid]++;
                 continue;
             }
@@ -275,6 +312,14 @@ int main(int argc, char *argv[]){
                 msgsnd(mq3,&buf,sizeof(buf.info),0);
                 printf("\tPage Fault Sequence: (%d,%d)\n", pid, pageNumber);
                 fflush(stdout);
+                write(fd, "\tPage Fault Sequence: (", 23);
+                char temp[100];
+                sprintf(temp, "%d", pid);
+                write(fd, temp, strlen(temp));
+                write(fd, ",", 1);
+                sprintf(temp, "%d", pageNumber);
+                write(fd, temp, strlen(temp));
+                write(fd, ")\n", 2);
                 pageFaults[pid]++;
                 PageFaultHandler(pageNumber, pid, mq2, mq3, freeFrameListHead, pageTables, table_assgn, k, m, f);
             }

@@ -29,6 +29,9 @@ typedef struct freeFrameList{
 } freeFrameList;
 
 int mq1id, mq2id, mq3id;
+int sem1;
+int shm_k_id, shm_m_f_table_id;
+int *shm_k_ptr, *shm_m_f_table_ptr;
 
 void sighandler(int signum){
     if(signum == SIGINT){
@@ -36,6 +39,11 @@ void sighandler(int signum){
         msgctl(mq1id,IPC_RMID,NULL);
         msgctl(mq2id,IPC_RMID,NULL);
         msgctl(mq3id,IPC_RMID,NULL);
+        semctl(sem1,0,IPC_RMID);
+        shmdt(shm_k_ptr);
+        shmdt(shm_m_f_table_ptr);
+        shmctl(shm_k_id,IPC_RMID,NULL);
+        shmctl(shm_m_f_table_id,IPC_RMID,NULL);
         exit(0);
     }
 }
@@ -75,7 +83,7 @@ int main(){
 
     // free frame list
     int keysm2=ftok("Master.c",'E');
-    int sm2id=shmget(keysm2,sizeof(freeFrameList),IPC_CREAT|0666);
+    int sm2id=shmget(keysm2,sizeof(freeFrameList)*(f+1),IPC_CREAT|0666);
     freeFrameList *freeFrameListHead;
     freeFrameListHead=(freeFrameList*)shmat(sm2id,NULL,0);
 
@@ -114,13 +122,13 @@ int main(){
     }
 
     // stores k
-    int shm_k_id = shmget(ftok("MMU.c",'A'),sizeof(int),IPC_CREAT|0666);
-    int *shm_k_ptr = (int*)shmat(shm_k_id,NULL,0);
+    shm_k_id = shmget(ftok("MMU.c",'A'),sizeof(int),IPC_CREAT|0666);
+    shm_k_ptr = (int*)shmat(shm_k_id,NULL,0);
     *shm_k_ptr = k;
 
     // stores m, f and numOfPagesReqd
-    int shm_m_f_table_id = shmget(ftok("MMU.c",'B'),(k+2)*sizeof(int),IPC_CREAT|0666);
-    int *shm_m_f_table_ptr = (int*)shmat(shm_m_f_table_id,NULL,0);
+    shm_m_f_table_id = shmget(ftok("MMU.c",'B'),(k+2)*sizeof(int),IPC_CREAT|0666);
+    shm_m_f_table_ptr = (int*)shmat(shm_m_f_table_id,NULL,0);
     shm_m_f_table_ptr[0] = m;
     shm_m_f_table_ptr[1] = f;
     for (int i = 0; i < k; i++) shm_m_f_table_ptr[i+2] = numOfPagesReqd[i];
@@ -143,7 +151,7 @@ int main(){
     sprintf(mq3,"%d",mq3id);
 
     int keysem1=ftok("Master.c",'F');
-    int sem1=semget(keysem1,1,IPC_CREAT|0666);
+    sem1=semget(keysem1,1,IPC_CREAT|0666);
     semctl(sem1,0,SETVAL,0);
 
     // passing keyss as cmd line args
