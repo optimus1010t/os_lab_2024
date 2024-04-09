@@ -87,6 +87,9 @@ int main(){
     int totalNumOfPagesReqd = 0;
     int frameNumber = 0;
 
+    // pids of scheduler and mmu
+    int pidSched, pidMMU;
+
     for(int i=0;i<k;i++) {
         numOfPagesReqd[i] = rand()%m + 1;
         totalNumOfPagesReqd += numOfPagesReqd[i];
@@ -145,13 +148,13 @@ int main(){
     // passing keyss as cmd line args
 
     // child process to execute scheduler
-    if(fork()==0) {
+    if((pidSched=fork())==0) {
         execlp("./sched","./sched",mq1,mq2,NULL);
         perror("error1\n");
     }
 
     // child process to execute MMU
-    if(fork()==0) {
+    if((pidMMU=fork())==0) {
         execlp("xterm", "xterm", "-T", "MMU", "-e", "./MMU",mq2,mq3,sm1,sm2,NULL);
         perror("error2\n");
     }
@@ -213,7 +216,8 @@ int main(){
 
 
     // terminate scheduler and MMU
-    kill(0,SIGTERM);
+    kill(pidSched,SIGINT);
+    kill(pidMMU,SIGINT);
 
     // deallocate shared memory and message queues
     shmdt(pageTables);

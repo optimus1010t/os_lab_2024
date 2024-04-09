@@ -39,7 +39,7 @@ struct msgbuf3 {  // standard for sending messages to the MMU
     } info;
 };
 
-void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, int *isFrameFree, pageTableEntry *pageTables, int *table_assgn, int k, int m, int f){
+void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, int *isFrameFree, pageTableEntry *pageTables, int k, int m, int f){
     struct sembuf pop, vop ;
     pop.sem_num = vop.sem_num = 0;
     pop.sem_flg = vop.sem_flg = 0;
@@ -94,6 +94,7 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, int *isFrameFre
         // if set is empty, can't do anything, so sending message to scheduler to enqueue the process for later, is that correct????
         if(!flag){
             printf("Set is empty\n");
+            // sleep(10);
             struct msgbuf buf;
             buf.mtype = 1;
             buf.msg = pid;
@@ -106,29 +107,30 @@ void PageFaultHandler(int pageNumber, int pid, int mq2, int mq3, int *isFrameFre
             int max = -1;
             for(int i=0;i<m;i++){
                 if(i==pageNumber) continue;     // redundant, but still
-                if(pageTables[m*flag+i].valid==1 && pageTables[m*flag+i].lastUsedAt > max){
-                    max = pageTables[m*flag+i].lastUsedAt;
+                if(pageTables[m*pid+i].valid==1 && pageTables[m*pid+i].lastUsedAt > max){
+                    max = pageTables[m*pid+i].lastUsedAt;
                     page_to_replace = i;
                 }
             }
 
             // assign the new page to the frame
-            pageTables[m*flag+pageNumber].valid = 1;
-            pageTables[m*flag+pageNumber].frameNumber = pageTables[m*flag+page_to_replace].frameNumber;
+            pageTables[m*pid+pageNumber].valid = 1;
+            pageTables[m*pid+pageNumber].frameNumber = pageTables[m*pid+page_to_replace].frameNumber;
             for(int i=0;i<m;i++){
-                if(pageTables[m*flag+i].valid==1 && i!=pageNumber){
-                    pageTables[m*flag+i].lastUsedAt++;
+                if(pageTables[m*pid+i].valid==1 && i!=pageNumber){
+                    pageTables[m*pid+i].lastUsedAt++;
                 }
             }
-            pageTables[m*flag+pageNumber].lastUsedAt = 0;
-            pageTables[m*flag+page_to_replace].valid = 0;
-            pageTables[m*flag+page_to_replace].frameNumber = -1;
-            pageTables[m*flag+page_to_replace].lastUsedAt = -1;
+            pageTables[m*pid+pageNumber].lastUsedAt = 0;
+            pageTables[m*pid+page_to_replace].valid = 0;
+            pageTables[m*pid+page_to_replace].frameNumber = -1;
+            pageTables[m*pid+page_to_replace].lastUsedAt = -1;
 
             // send a type 1 message to the scheduler
             struct msgbuf buf;
             buf.mtype = 1;
             buf.msg = pid;
+            // sleep(1);
             printf("MMU: mtype=%d, msg=%d\n", buf.mtype, buf.msg);
             msgsnd(mq2,&buf,sizeof(buf.msg),0);
         }
@@ -160,8 +162,6 @@ int main(int argc, char *argv[]){
     int maxPageindex[k];
     for(int i=0;i<k;i++) maxPageindex[i] = shm_m_f_table_ptr[i+2];
 
-    int table_assgn[k];
-    for(int i=0;i<k;i++) table_assgn[i] = -1;
 
     int mq2, mq3, sm1id, sm2id;
     mq2=atoi(argv[1]);
@@ -178,9 +178,13 @@ int main(int argc, char *argv[]){
 
     while (1) {
         globaltime++;
+        printf("Free list: ");
+        for(int i=0;i<f;i++){
+            printf("%d ",isFrameFree[i]);
+        }
         printf("Global Time: %ld\n", globaltime);
         struct msgbuf3 buf3;
-        if(msgrcv(mq3,&buf3,sizeof(buf3.info),0,0)<0)
+        if(msgrcv(mq3,&buf3,sizeof(buf3.info),1,0)<0)
         {
             perror("MMU:msgrcv");
             exit(1);
@@ -235,15 +239,12 @@ int main(int argc, char *argv[]){
                 buf3.info.pid = pid;
                 buf3.info.pageNumber = pageNumber;
                 buf3.info.msg = -2;
-                // buf3.mtype = 1;
-                // buf3.msg = -2;
                 printf("Sending (%d, %d, %d)\n", pid, pageNumber, -2);
                 msgsnd(mq3,&buf3,sizeof(buf3.info),0);
                 struct msgbuf buf;
                 buf.mtype = 2;
                 buf.msg = pid;
                 printf("MMU: mtype=%d, msg=%d\n", buf.mtype, buf.msg);
-                msgsnd(mq2,&buf,sizeof(buf.msg),0);
                 // printf("seg fault\n");
                 printf("Invalid Page Reference: (%d, %d)\n", pid, pageNumber);
                 fflush(stdout);
@@ -256,6 +257,7 @@ int main(int argc, char *argv[]){
                 write(fd, temp, strlen(temp));
                 write(fd, ")\n", 2);
                 invalidPageReferences[pid]++;
+                msgsnd(mq2,&buf,sizeof(buf.msg),0);
                 continue;
             }
             if (pageTables[m*flag+pageNumber].valid == 1) {
@@ -275,8 +277,8 @@ int main(int argc, char *argv[]){
                 buf.info.pageNumber=pageTables[m*flag+pageNumber].frameNumber;
                 buf.info.pid=pid;
                 printf("Sending (%d, %d, %d)\n", pid, pageNumber, pageTables[m*flag+pageNumber].frameNumber);
-                msgsnd(mq3,&buf,sizeof(buf.info),0);
                 printf("assigned framenumber %d to page %d\n", buf.info.msg,pageNumber);
+                msgsnd(mq3,&buf,sizeof(buf.info),0);
             }
             else {
                 // page fault
@@ -286,7 +288,6 @@ int main(int argc, char *argv[]){
                 buf.info.pageNumber = -1;
                 buf.info.msg = -1;
                 printf("Sending (%d, %d, %d)\n", pid, pageNumber, -1);
-                msgsnd(mq3,&buf,sizeof(buf.info),0);
                 printf("\tPage Fault Sequence: (%d,%d)\n", pid, pageNumber);
                 fflush(stdout);
                 write(fd, "\tPage Fault Sequence: (", 23);
@@ -298,7 +299,8 @@ int main(int argc, char *argv[]){
                 write(fd, temp, strlen(temp));
                 write(fd, ")\n", 2);
                 pageFaults[pid]++;
-                PageFaultHandler(pageNumber, pid, mq2, mq3, isFrameFree, pageTables, table_assgn, k, m, f);
+                msgsnd(mq3,&buf,sizeof(buf.info),0);
+                PageFaultHandler(pageNumber, pid, mq2, mq3, isFrameFree, pageTables, k, m, f);
             }
         }
     }

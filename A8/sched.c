@@ -78,6 +78,7 @@ int main(int argc, char *argv[]){
             numOfTerminatedProcesses++;
         }
     }
+    printf("scheduler almost done\n");
     signall(sem1);
     // can it end itself or we needa wait for master to kill????
     shmdt(shm_k_ptr);
