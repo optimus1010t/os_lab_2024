@@ -12,5 +12,5 @@ Process: Process.c
 	gcc -o Process Process.c
 
 clean:
-	rm -f Master sched MMU Process
+	rm -f Master sched MMU Process output.txt
 
